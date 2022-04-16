@@ -1,0 +1,18 @@
+[package]
+name = "vcd_io"
+version = "0.1.0"
+edition = "2021"
+keywords = ["parser","eda","waveform","verification","science"]
+readme = "README.md"
+license = "MIT OR Apache-2.0"
+description = "VCD IO utils"
+repository = "https://github.com/erihsu/vcd-io"
+exclude = [
+	"testcases/*",
+	"tests/*",
+]
+
+[dependencies]
+nom = "7.0"
+byteorder = "1.4.3"
+thiserror = "1.0"
