@@ -3,7 +3,7 @@
 // 			["$commet","$date","$end","$timescale","$var",
 // 			"$upscope","$enddefinitions","$dumpvars","$version","$dumpall",
 // 			"$scope","dumpoff","dumpon"];
-
+#![allow(dead_code)]
 mod error;
 mod parser;
 mod saver;
@@ -65,6 +65,7 @@ impl Display for ScopeType {
     }
 }
 
+#[derive(PartialEq,Debug,Clone)]
 pub enum ScalarValue {
 	ZeroOne(bool),
 	Xstate,
@@ -84,6 +85,7 @@ impl Display for ScalarValue {
     }
 }
 
+#[derive(PartialEq,Debug,Clone)]
 pub enum VarValue {
 	Scalar(ScalarValue),
 	Vector(Vec<ScalarValue>),
@@ -95,7 +97,7 @@ impl Display for VarValue {
         match &self {
         	VarValue::Scalar(s) => write!(f,"{}",s),
         	VarValue::Vector(v) => {
-        		write!(f,"b");
+        		write!(f,"b")?;
         		for a_v in v {
         			write!(f,"{}",a_v)?;
         		}
@@ -130,7 +132,7 @@ pub type ValueIndex = usize;
 
 pub type VcdRes<T, U> = IResult<T, U, VerboseError<T>>;
 
-pub struct  Vcd_Db {
+pub struct  VcdDb {
 	// VCD header
 	pub date:String,
 	pub version:String,
