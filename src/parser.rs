@@ -3,7 +3,7 @@ use nom::{
     bytes::complete::{tag,take_until1,take_until},
     combinator::{map,map_res,opt,recognize,value},
     sequence::{delimited, preceded, tuple,pair},
-    character::complete::{one_of,alpha1,digit1,char,anychar,space1,alphanumeric1,multispace0},
+    character::complete::{one_of,alpha1,digit1,char,space1,alphanumeric1,multispace0},
     multi::{many0,many1},
     Finish,
 };
@@ -38,9 +38,9 @@ pub fn tstring(input: &str) -> VcdRes<&str, &str> {
 
 pub(crate) fn vcd_header_parser(input:&str) -> VcdRes<&str,(&str,&str,&str)>{
 	tuple((
-		delimited(ws(tag("$date")),take_until1("$"),tag("$end")),
-		delimited(ws(tag("$version")),take_until1("$"),tag("$end")),
-		delimited(ws(tag("$comment")),take_until1("$"),tag("$end")),
+		map(delimited(ws(tag("$date")),take_until1("$"),tag("$end")),str::trim),
+		map(delimited(ws(tag("$version")),take_until1("$"),tag("$end")),str::trim),
+		map(delimited(ws(tag("$comment")),take_until1("$"),tag("$end")),str::trim),
 		))(input)
 }
 
@@ -76,7 +76,7 @@ pub(crate) fn vcd_variable_def_parser(input:&str) -> VcdRes<&str,(String,Variabl
 				space1,
 				digit1,
 				space1,
-				map(many1(anychar),|res:Vec<char>|res.into_iter().collect()),
+				vcd_identifier_parser,
 				space1,
 				tstring,
 				take_until("$"),
@@ -95,7 +95,7 @@ pub(crate) fn vcd_scope_def_parser(input:&str) -> VcdRes<&str,(ScopeType,&str)> 
 				map(tag("module"),|_|ScopeType::Module),
 				map(tag("task"),|_|ScopeType::Task),
 				map(tag("function"),|_|ScopeType::Function),
-				map(tag("Fork"),|_|ScopeType::Fork),
+				map(tag("fork"),|_|ScopeType::Fork),
 				)),
 			tstring,
 			)),
@@ -113,17 +113,17 @@ pub(crate) fn vcd_upscope_parser(input:&str) -> VcdRes<&str,()> {
 
 
 pub(crate) fn vcd_scalar_val_parser(input:&str) -> VcdRes<&str,ScalarValue> {
-	alt((
+	ws(alt((
 	map(recognize(char('0')),|_|ScalarValue::ZeroOne(false)),
 	map(recognize(char('1')),|_|ScalarValue::ZeroOne(true)),
 	map(recognize(char('x')),|_|ScalarValue::Xstate),
 	map(recognize(char('X')),|_|ScalarValue::Xstate),
-	))(input)
+	)))(input)
 }
 
 pub(crate) fn vcd_vector_val_parser(input:&str) -> VcdRes<&str,Vec<ScalarValue>> {
 	preceded(
-		alt((char('b'),char('B'))),
+		ws(alt((char('b'),char('B')))),
 		many1(
 			alt((
 				map(char('0'),|_|ScalarValue::ZeroOne(false)),
@@ -137,7 +137,7 @@ pub(crate) fn vcd_vector_val_parser(input:&str) -> VcdRes<&str,Vec<ScalarValue>>
 
 pub(crate) fn vcd_real_val_parser(input:&str) -> VcdRes<&str,String> {
 	map(preceded(
-		alt((char('R'),char('r'))),
+		ws(alt((char('R'),char('r')))),
 		digit1,
 		),|res:&str|res.to_string())(input)
 }
@@ -253,7 +253,7 @@ pub(crate) fn vcd_parser(input:&str) -> std::result::Result<VcdDb,VcdError> {
 				}
 		})
 		
-	))(input).finish().map_err(|_|VcdError::BadVCD).unwrap();
+	))(input).finish()/*.map_err(|_|VcdError::BadVCD)*/.unwrap();
 
 	return Ok(VcdDb{
 		date:date.to_string(),
@@ -285,6 +285,59 @@ mod test {
 	fn test_vcd_variable_val_parser() {
 		assert_eq!(vcd_variable_val_parser("b1001 #\n"),Ok(("\n",(VarValue::Vector(vec![ScalarValue::ZeroOne(true),ScalarValue::ZeroOne(false),ScalarValue::ZeroOne(false),ScalarValue::ZeroOne(true)])," #"))));
 		assert_eq!(vcd_variable_val_parser("x&\n"),Ok(("\n",(VarValue::Scalar(ScalarValue::Xstate),"&"))));
+	}
+
+	#[test]
+	fn test_vcd_parser() {
+		let vcd_plain = concat!(
+						"$date\nDate text. For example: November 11, 2009.\n$end",
+						"$version\nVCD generator tool version info text.\n$end",
+						"$comment\nAny comment text.\n$end",
+						"$timescale 1ps $end",
+						"$scope module logic $end",
+						"$var wire 8 # data $end",
+						"$var wire 1 $ data_valid $end",
+						"$var wire 1 % en $end",
+						"$var wire 1 & rx_en $end",
+						"$var wire 1 ' tx_en $end",
+						"$var wire 1 ( empty $end",
+						"$var wire 1 ) underrun $end",
+						"$upscope $end",
+						"$enddefinitions $end",
+						"$dumpvars\n",
+						"bxxxxxxxx #\n",
+						"x$\n",
+						"0%\n",
+						"x&\n",
+						"x'\n",
+						"1(\n",
+						"0)\n",
+						"$end",
+						"#0\n",
+						"b10000001 #\n",
+						"0$\n",
+						"1%\n",
+						"0&\n",
+						"1'\n",
+						"0(\n",
+						"0)\n",
+						"#2211\n",
+						"0'\n",
+						"#2296\n",
+						"b0 #\n",
+						"1$\n",
+						"#2302\n",
+						"0$\n",
+						"#2303\n",
+						);
+		let vcd_db:VcdDb = vcd_parser(&vcd_plain).unwrap();
+		assert_eq!(vcd_db.date,"Date text. For example: November 11, 2009.".to_string());
+		assert_eq!(vcd_db.comment,"Any comment text.".to_string());
+		assert_eq!(vcd_db.version,"VCD generator tool version info text.".to_string());
+		assert_eq!(vcd_db.timescale.1,TimeUnit::Psec);
+		assert_eq!(vcd_db.variable[0],Variable{var_type:VarType::Wire,name:"data".to_string(),width:8});
+		assert_eq!(vcd_db.var_id_map.get("#"),Some(&0));
+		
 	}
 
 }

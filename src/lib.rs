@@ -8,6 +8,7 @@ mod error;
 mod parser;
 mod saver;
 
+#[derive(PartialEq,Debug)]
 pub enum TimeUnit {
 	Psec,
 	Nsec,
@@ -32,7 +33,7 @@ impl Display for TimeUnit {
     }
 }
 
-
+#[derive(PartialEq,Debug)]
 pub enum VarType {
 	Wire,
 	Reg,
@@ -108,6 +109,7 @@ impl Display for VarValue {
     }
 }
 
+#[derive(PartialEq,Debug)]
 pub struct Variable {
 	var_type:VarType,
 	name: String,
