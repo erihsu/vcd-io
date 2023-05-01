@@ -84,6 +84,17 @@ impl Display for ScalarValue {
         	ScalarValue::Xstate => write!(f,"x"),
         }
     }
+}	    
+	    
+impl std::ops::Not for ScalarValue {
+    type Output = Self;
+
+    fn not(self) -> Self::Output {
+        match self {
+            ScalarValue::ZeroOne(b) => ScalarValue::ZeroOne(!b),
+            ScalarValue::Xstate => ScalarValue::Xstate
+        }
+    }
 }
 
 #[derive(PartialEq,Debug,Clone)]
