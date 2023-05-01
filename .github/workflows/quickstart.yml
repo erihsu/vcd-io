@@ -1,9 +1,9 @@
-on: [push]
-name: vcd-io project action
+# on: [push]
+# name: vcd-io project action
 
-jobs: 
-  build:
-    runs-on: ubuntu-latest
-    steps: 
-      - name: Rust Action
-        uses: icepuma/rust-action@1.60.0
+# jobs: 
+#   build:
+#     runs-on: ubuntu-latest
+#     steps: 
+#       - name: Rust Action
+#         uses: icepuma/rust-action@1.60.0
