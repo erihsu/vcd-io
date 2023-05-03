@@ -122,6 +122,12 @@ pub struct Variable {
     width: u16,
 }
 
+impl Variable {
+    pub fn get_width(&self) -> u16 {
+        self.width
+    }
+}
+
 pub struct Scope {
     scope_type: ScopeType,
     scope_name: String,
