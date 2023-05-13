@@ -7,6 +7,10 @@ mod error;
 mod parser;
 mod saver;
 
+use parser::vcd_parser;
+
+use crate::error::VcdError;
+
 #[derive(PartialEq, Debug)]
 pub enum TimeUnit {
     Psec,
@@ -34,6 +38,9 @@ impl Display for TimeUnit {
 pub enum VarType {
     Wire,
     Reg,
+    TriReg,
+    Integer,
+    Port,
 }
 
 impl Display for VarType {
@@ -41,6 +48,9 @@ impl Display for VarType {
         match &self {
             VarType::Wire => write!(f, "wire"),
             VarType::Reg => write!(f, "reg"),
+            VarType::TriReg => write!(f, "trireg"),
+            VarType::Integer => write!(f, "integer"),
+            VarType::Port => write!(f, "port"),
         }
     }
 }
@@ -188,4 +198,18 @@ impl Default for VcdDb {
             value_var_map: HashMap::new(),
         }
     }
+}
+
+pub fn parse_vcd<P: AsRef<std::path::Path> + std::convert::AsRef<std::ffi::OsStr>>(
+    file: P,
+) -> Result<VcdDb, VcdError> {
+    let path = std::path::Path::new(&file);
+    let buff = std::fs::read_to_string(&file)?;
+    let vcd: VcdDb = vcd_parser(&buff).map_err(|mut e| {
+        if let VcdError::BadVCD(ref mut report) = e {
+            report.bad_vcd_file = path.to_path_buf()
+        }
+        e
+    })?;
+    Ok(vcd)
 }
