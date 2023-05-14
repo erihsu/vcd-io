@@ -10,7 +10,6 @@ $var wire 1 $ D3 $end
 $var wire 4 & Data $end
 $upscope $end
 $enddefinitions $end
-
 #0 1! 0" 0# 1$ b1100 &
 #1 0! 1" 1# 0$ 
 #2 b1101 &

@@ -1,6 +1,6 @@
 edition = "2021"
-newline_style = "unix"
+newline_style = "native"
 
-import_granularity = "Crate"
-group_imports="StdExternalCrate"
+# import_granularity = "Crate"
+# group_imports="StdExternalCrate"
 

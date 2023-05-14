@@ -40,6 +40,9 @@ $var wire 1 : w7 $end
 $var wire 1 ; w8 $end
 $var wire 1 < w9 $end
 $var wire 4 = res [3:0] $end
+$upscope $end
+$upscope $end
+$enddefinitions $end
 #0
 $dumpvars
 b0 =

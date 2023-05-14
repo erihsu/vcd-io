@@ -77,6 +77,7 @@ impl Display for ScopeType {
 pub enum ScalarValue {
     ZeroOne(bool),
     Xstate,
+    Zstate,
 }
 
 impl Display for ScalarValue {
@@ -87,6 +88,7 @@ impl Display for ScalarValue {
                 false => write!(f, "0"),
             },
             ScalarValue::Xstate => write!(f, "x"),
+            ScalarValue::Zstate => write!(f, "z"),
         }
     }
 }
@@ -98,6 +100,7 @@ impl std::ops::Not for ScalarValue {
         match self {
             ScalarValue::ZeroOne(b) => ScalarValue::ZeroOne(!b),
             ScalarValue::Xstate => ScalarValue::Xstate,
+            ScalarValue::Zstate => ScalarValue::Zstate,
         }
     }
 }
@@ -200,16 +203,17 @@ impl Default for VcdDb {
     }
 }
 
-pub fn parse_vcd<P: AsRef<std::path::Path> + std::convert::AsRef<std::ffi::OsStr>>(
-    file: P,
-) -> Result<VcdDb, VcdError> {
-    let path = std::path::Path::new(&file);
-    let buff = std::fs::read_to_string(&file)?;
-    let vcd: VcdDb = vcd_parser(&buff).map_err(|mut e| {
-        if let VcdError::BadVCD(ref mut report) = e {
-            report.bad_vcd_file = path.to_path_buf()
-        }
-        e
-    })?;
+pub fn multi_parse_vcd(file: &str) -> Result<VcdDb, VcdError> {
+    let (s, r) = std::sync::mpsc::channel();
+    s.send(std::fs::read_to_string(&file).unwrap()).unwrap();
+
+    let vcd: VcdDb = vcd_parser(&r.recv().unwrap())?;
+    Ok(vcd)
+}
+
+pub fn parse_vcd(file: &str) -> Result<VcdDb, VcdError> {
+    // let report = VcdIoReport::new(&file);
+    // let buff = std::fs::read_to_string(&file)?;
+    let vcd: VcdDb = vcd_parser(&file)?;
     Ok(vcd)
 }
