@@ -3,7 +3,8 @@ VCD(Value Change Dump) spec parser/saver
 
 The crate is currently purposed for internal use only
 
-
+## RoadMap
+The planned [roadmap](RoadMap.md)
 
 ## Reference
 [wiki](https://handwiki.org/wiki/Value_change_dump)
