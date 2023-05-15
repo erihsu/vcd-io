@@ -43,3 +43,51 @@ fn content_checker1() {
         }
     }
 }
+
+#[test]
+fn content_checker2() {
+    let filename = "example2.vcd";
+    match parse_vcd(&format!(
+        "{}/testcases/{}",
+        std::env::var("CARGO_MANIFEST_DIR").unwrap(),
+        filename
+    )) {
+        Ok(vcd_db) => {
+            assert_eq!(vcd_db.var_id_map.get("4"), Some(&25usize));
+            assert_eq!(vcd_db.var_id_map.get(","), Some(&15usize));
+            assert_eq!(vcd_db.var_id_map.get("2"), Some(&23usize));
+            assert_eq!(vcd_db.var_id_map.get("1"), Some(&22usize));
+            assert_eq!(vcd_db.var_id_map.get("%"), Some(&11usize));
+        }
+        Err(e) => {
+            panic!("{:?}", e);
+            // assert!(false);
+        }
+    }
+}
+
+#[test]
+fn content_checker3() {
+    let filename = "handy.vcd";
+    match parse_vcd(&format!(
+        "{}/testcases/{}",
+        std::env::var("CARGO_MANIFEST_DIR").unwrap(),
+        filename
+    )) {
+        Ok(vcd_db) => {
+            assert_eq!(
+                vcd_db.var_value[3][1],
+                VarValue::Vector(vec![
+                    ScalarValue::ZeroOne(false),
+                    ScalarValue::ZeroOne(false),
+                    ScalarValue::ZeroOne(false),
+                    ScalarValue::ZeroOne(true),
+                ])
+            );
+        }
+        Err(e) => {
+            panic!("{:?}", e);
+            // assert!(false);
+        }
+    }
+}

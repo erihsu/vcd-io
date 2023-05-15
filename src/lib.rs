@@ -178,6 +178,8 @@ pub struct VcdDb {
     // pub var_value_map:HashMap<String,ValueIndex>,
     // <value index,variable identifier> mapping
     pub value_var_map: HashMap<ValueIndex, String>,
+    // indicate start index of value, because vcd may missing value if no transition happened after a timestamp
+    pub padding_value: Vec<Vec<usize>>,
 }
 
 impl VcdDb {
@@ -199,6 +201,7 @@ impl Default for VcdDb {
             var_value: vec![],
             var_id_map: HashMap::new(),
             value_var_map: HashMap::new(),
+            padding_value: vec![],
         }
     }
 }

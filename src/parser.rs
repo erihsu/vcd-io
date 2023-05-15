@@ -149,26 +149,23 @@ pub(crate) fn vcd_enddefinition_parser(input: &str) -> VcdRes<&str, ()> {
 }
 
 pub(crate) fn vcd_scalar_val_parser(input: &str) -> VcdRes<&str, ScalarValue> {
-    ws(alt((
+    alt((
         map(recognize(char('0')), |_| ScalarValue::ZeroOne(false)),
         map(recognize(char('1')), |_| ScalarValue::ZeroOne(true)),
         map(recognize(char('x')), |_| ScalarValue::Xstate),
         map(recognize(char('X')), |_| ScalarValue::Xstate),
         map(recognize(char('z')), |_| ScalarValue::Zstate),
         map(recognize(char('Z')), |_| ScalarValue::Zstate),
-    )))(input)
+    ))(input)
 }
 
 pub(crate) fn vcd_vector_val_parser(input: &str) -> VcdRes<&str, Vec<ScalarValue>> {
-    preceded(
-        ws(alt((char('b'), char('B')))),
-        many1(vcd_scalar_val_parser),
-    )(input)
+    preceded(alt((char('b'), char('B'))), many1(vcd_scalar_val_parser))(input)
 }
 
 pub(crate) fn vcd_real_val_parser(input: &str) -> VcdRes<&str, String> {
     map(
-        preceded(ws(alt((char('R'), char('r')))), digit1),
+        preceded(alt((char('R'), char('r'))), digit1),
         |res: &str| res.to_string(),
     )(input)
 }
@@ -176,22 +173,22 @@ pub(crate) fn vcd_real_val_parser(input: &str) -> VcdRes<&str, String> {
 pub(crate) fn vcd_variable_val_parser(input: &str) -> VcdRes<&str, (VarValue, &str)> {
     alt((
         pair(
-            map(vcd_scalar_val_parser, |v| VarValue::Scalar(v)),
+            ws(map(vcd_scalar_val_parser, |v| VarValue::Scalar(v))),
             take_till(|c| c == ' ' || c == '\n'),
         ),
         pair(
-            map(vcd_vector_val_parser, |v| VarValue::Vector(v)),
+            ws(map(vcd_vector_val_parser, |v| VarValue::Vector(v))),
             map(take_till(|c| c == '\n'), str::trim),
         ),
         pair(
-            map(vcd_real_val_parser, |v| VarValue::Real(v)),
+            ws(map(vcd_real_val_parser, |v| VarValue::Real(v))),
             take_till(|c| c == ' ' || c == '\n'),
         ),
     ))(input)
 }
 
 pub(crate) fn vcd_timestap_parser(input: &str) -> VcdRes<&str, u32> {
-    preceded(ws(char('#')), map_res(digit1, str::parse))(input)
+    ws(preceded(char('#'), map_res(digit1, str::parse)))(input)
 }
 
 pub(crate) fn vcd_variable_parser(input: &str) -> VcdRes<&str, (u32, Vec<(VarValue, &str)>)> {
@@ -444,9 +441,16 @@ pub(crate) fn vcd_parser(input: &str) -> std::result::Result<VcdDb, VcdError> {
                                     }
                                     vcd_db.var_value.push(zero_stamp_values);
                                 } else {
+                                    let mut padding_vec = vec![];
+                                    let mut value_vec = vec![];
+                                    res.1.iter().for_each(|item|{
+                                        padding_vec.push(*vcd_db.var_id_map.get(item.1).expect(&format!("current id is {:?}, current var id map {:?}", item.1,vcd_db.var_id_map))); // TODO add sever fatal
+                                        value_vec.push(item.0.clone());
+                                    });
                                     vcd_db
                                         .var_value
-                                        .push(res.1.iter().map(|x| x.0.clone()).collect());
+                                        .push(value_vec);
+                                    vcd_db.padding_value.push(padding_vec);
                                 }
                                 // 2.
                                 buff.clear();
@@ -614,11 +618,57 @@ mod test {
     }
 
     #[test]
-    fn test_vcd_variable_val_parser() {
+    fn test_vcd_variable_val_parser1() {
         assert_eq!(
             vcd_variable_val_parser("b1001 #\n"),
             Ok((
                 "\n",
+                (
+                    VarValue::Vector(vec![
+                        ScalarValue::ZeroOne(true),
+                        ScalarValue::ZeroOne(false),
+                        ScalarValue::ZeroOne(false),
+                        ScalarValue::ZeroOne(true)
+                    ]),
+                    "#"
+                )
+            ))
+        );
+        assert_eq!(
+            vcd_variable_val_parser("x&\n"),
+            Ok(("\n", (VarValue::Scalar(ScalarValue::Xstate), "&")))
+        );
+    }
+
+    #[test]
+    fn test_vcd_variable_val_parser2() {
+        assert_eq!(
+            vcd_variable_val_parser("b1001 #"),
+            Ok((
+                "",
+                (
+                    VarValue::Vector(vec![
+                        ScalarValue::ZeroOne(true),
+                        ScalarValue::ZeroOne(false),
+                        ScalarValue::ZeroOne(false),
+                        ScalarValue::ZeroOne(true)
+                    ]),
+                    "#"
+                )
+            ))
+        );
+        assert_eq!(
+            vcd_variable_val_parser("x&\n"),
+            Ok(("\n", (VarValue::Scalar(ScalarValue::Xstate), "&")))
+        );
+    }
+
+    #[test]
+    fn test_vcd_variable_val_parser3() {
+        assert_eq!(
+            vcd_variable_val_parser("b1001 #\nb1001 !"),
+            Ok((
+                "\nb1001 !",
                 (
                     VarValue::Vector(vec![
                         ScalarValue::ZeroOne(true),
