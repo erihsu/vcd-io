@@ -435,10 +435,13 @@ pub(crate) fn vcd_parser(input: &str) -> std::result::Result<VcdDb, VcdError> {
                                 vcd_db.timestap.push(res.0);
                                 if vcd_db.var_value.len() == 0 {
                                     let mut zero_stamp_values: Vec<VarValue> = vec![];
-                                    for (j, (a_v, s)) in res.1.iter().enumerate() {
-                                        zero_stamp_values.push(a_v.clone());
-                                        vcd_db.value_var_map.insert(j, s.to_string());
-                                    }
+                                    let mut padding_vec = vec![];
+                                    res.1.iter().enumerate().for_each(|(item1,item2)|{
+                                        zero_stamp_values.push((item2.0).clone());
+                                        vcd_db.value_var_map.insert(item1, (item2.1).to_string());
+                                        padding_vec.push(*vcd_db.var_id_map.get(item2.1).expect(&format!("current id is {:?}, current var id map {:?}", item2.1,vcd_db.var_id_map))); // TODO add sever fatal                                                                                
+                                    });
+                                    vcd_db.padding_value.push(padding_vec);
                                     vcd_db.var_value.push(zero_stamp_values);
                                 } else {
                                     let mut padding_vec = vec![];
