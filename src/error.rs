@@ -35,7 +35,7 @@ pub struct VcdIoReport {
 impl VcdIoReport {
     pub fn new(file: PathBuf) -> Self {
         Self {
-            file: file,
+            file,
             content: BadVCDReport::default(),
         }
     }

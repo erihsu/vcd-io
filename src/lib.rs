@@ -217,6 +217,6 @@ pub fn multi_parse_vcd(file: &str) -> Result<VcdDb, VcdError> {
 pub fn parse_vcd(file: &str) -> Result<VcdDb, VcdError> {
     // let report = VcdIoReport::new(&file);
     // let buff = std::fs::read_to_string(&file)?;
-    let vcd: VcdDb = vcd_parser(&file)?;
+    let vcd: VcdDb = vcd_parser(file)?;
     Ok(vcd)
 }

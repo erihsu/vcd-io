@@ -74,6 +74,20 @@ $var reg 1 I zero $end
 $upscope $end
 
 
+$scope module control $end
+$var wire 6 J opcode [5:0] $end
+$var wire 6 K funct [5:0] $end
+$var reg 3 L alu_op [2:0] $end
+$var reg 1 M alu_src $end
+$var reg 1 N alu_shift $end
+$var reg 1 O branch $end
+$var reg 1 P mem_to_reg $end
+$var reg 1 Q mem_read $end
+$var reg 1 R mem_write $end
+$var reg 1 S reg_dst $end
+$var reg 1 T reg_write $end
+$upscope $end
+
 
 $scope module mem $end
 $var wire 1 # clk $end

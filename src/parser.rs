@@ -17,7 +17,7 @@ use crate::error::BadVCDReport;
 use crate::error::VcdError;
 use crate::*;
 
-const SPECIAL_IDENTIFIER: &str = "!\"#$%&'()*+,-./:;<=>?@[]^_`{|}~0123456789ABCDEFGHIJKLMNOPGRSTUVWXYZabcdefghijklmnopqrstuvwxyz";
+const SPECIAL_IDENTIFIER: &str = "!\"#$%&'()*+,-./:;<=>?@[]^_`{|}~0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz";
 
 pub fn ws<'a, F: 'a, O>(inner: F) -> impl FnMut(&'a str) -> VcdRes<&'a str, O>
 where
@@ -173,15 +173,15 @@ pub(crate) fn vcd_real_val_parser(input: &str) -> VcdRes<&str, String> {
 pub(crate) fn vcd_variable_val_parser(input: &str) -> VcdRes<&str, (VarValue, &str)> {
     alt((
         pair(
-            ws(map(vcd_scalar_val_parser, |v| VarValue::Scalar(v))),
+            ws(map(vcd_scalar_val_parser, VarValue::Scalar)),
             take_till(|c| c == ' ' || c == '\n'),
         ),
         pair(
-            ws(map(vcd_vector_val_parser, |v| VarValue::Vector(v))),
-            map(take_till(|c| c == '\n'), str::trim),
+            ws(map(vcd_vector_val_parser, VarValue::Vector)),
+            map(take_till(|c| c == ' ' || c == '\n'), str::trim),
         ),
         pair(
-            ws(map(vcd_real_val_parser, |v| VarValue::Real(v))),
+            ws(map(vcd_real_val_parser, VarValue::Real)),
             take_till(|c| c == ' ' || c == '\n'),
         ),
     ))(input)
@@ -285,10 +285,10 @@ const SPLIT_PATTERN: [char; 1] = [' '];
 
 fn peak_tag(input: &str) -> Option<VcdTag> {
     let trimed = input.trim();
-    if trimed.starts_with("#") {
+    if trimed.starts_with('#') {
         Some(VcdTag::Timestamp)
-    } else if trimed.starts_with("$") {
-        if let Some(leading_tag) = trimed.split_whitespace().nth(0) {
+    } else if trimed.starts_with('$') {
+        if let Some(leading_tag) = trimed.split_whitespace().next() {
             let matched = match leading_tag {
                 "$end" => VcdTag::End,
                 "$date" => VcdTag::Date,
@@ -316,43 +316,25 @@ fn peak_tag(input: &str) -> Option<VcdTag> {
 }
 
 fn check_end(input: &str) -> bool {
-    if input.trim_end().ends_with("$end") {
-        true
-    } else {
-        false
-    }
+    input.trim_end().ends_with("$end")
 }
 
 fn check_end_contained(input: &str) -> bool {
-    if input.contains("$end") {
-        true
-    } else {
-        false
-    }
+    input.contains("$end")
 }
 
 fn check_timestamp(input: &str) -> bool {
-    if input.starts_with('#') {
-        true
-    } else {
-        false
-    }
+    input.starts_with('#')
 }
 
 fn check_skipped_after_timestamp(leading_tag: &VcdTag) -> bool {
-    if *leading_tag == VcdTag::Comment
+    *leading_tag == VcdTag::Comment
         || *leading_tag == VcdTag::Dumpports
         || *leading_tag == VcdTag::Dumpvars
         || *leading_tag == VcdTag::DumpAll
         || *leading_tag == VcdTag::DumpOff
         || *leading_tag == VcdTag::DumpOn
         || *leading_tag == VcdTag::End
-    // dump end
-    {
-        true
-    } else {
-        false
-    }
 }
 
 use std::io;
@@ -384,7 +366,7 @@ pub(crate) fn vcd_parser(input: &str) -> std::result::Result<VcdDb, VcdError> {
         for line in lines {
             let rcvd_leading_tag = if let Ok(ref slice) = line {
                 if !slice.is_empty() {
-                    peak_tag(&slice)
+                    peak_tag(slice)
                 } else {
                     None
                 }
@@ -409,7 +391,7 @@ pub(crate) fn vcd_parser(input: &str) -> std::result::Result<VcdDb, VcdError> {
                         Some(BadVCDReport {
                             recovered_buff: buff.join(" "),
                             error_start_line: readed_line,
-                            possible_error: format!("Untagged is not allowed before timestamp or after statement has end"),
+                            possible_error: "Untagged is not allowed before timestamp or after statement has end".to_string(),
                         })
                     } else {
                         // normal flow, not expect exception here
@@ -419,7 +401,7 @@ pub(crate) fn vcd_parser(input: &str) -> std::result::Result<VcdDb, VcdError> {
                         	buff.push(line.unwrap());
                         } else if leading_tag == VcdTag::Timestamp {
                             timestamp_rcvd = true;
-                            if buff.len() == 0usize {
+                            if buff.is_empty() {
                                 buff.push(line.unwrap());
                             } else {
                                 // first parse variable, then clear, finally push
@@ -433,13 +415,13 @@ pub(crate) fn vcd_parser(input: &str) -> std::result::Result<VcdDb, VcdError> {
                                     VcdError::BadVCD(diagnosis)
                                 })?;
                                 vcd_db.timestap.push(res.0);
-                                if vcd_db.var_value.len() == 0 {
+                                if vcd_db.var_value.is_empty() {
                                     let mut zero_stamp_values: Vec<VarValue> = vec![];
                                     let mut padding_vec = vec![];
                                     res.1.iter().enumerate().for_each(|(item1,item2)|{
                                         zero_stamp_values.push((item2.0).clone());
                                         vcd_db.value_var_map.insert(item1, (item2.1).to_string());
-                                        padding_vec.push(*vcd_db.var_id_map.get(item2.1).expect(&format!("current id is {:?}, current var id map {:?}", item2.1,vcd_db.var_id_map))); // TODO add sever fatal                                                                                
+                                        padding_vec.push(*vcd_db.var_id_map.get(item2.1).unwrap_or_else(||panic!("current id is {:?}, current var id map {:?}", item2.1,vcd_db.var_id_map))); // TODO add sever fatal                                                                                
                                     });
                                     vcd_db.padding_value.push(padding_vec);
                                     vcd_db.var_value.push(zero_stamp_values);
@@ -447,7 +429,7 @@ pub(crate) fn vcd_parser(input: &str) -> std::result::Result<VcdDb, VcdError> {
                                     let mut padding_vec = vec![];
                                     let mut value_vec = vec![];
                                     res.1.iter().for_each(|item|{
-                                        padding_vec.push(*vcd_db.var_id_map.get(item.1).expect(&format!("current id is {:?}, current var id map {:?}", item.1,vcd_db.var_id_map))); // TODO add sever fatal
+                                        padding_vec.push(*vcd_db.var_id_map.get(item.1).unwrap_or_else(||panic!("current id is {:?}, current var id map {:?}", item.1,vcd_db.var_id_map))); // TODO add sever fatal
                                         value_vec.push(item.0.clone());
                                     });
                                     vcd_db
@@ -522,6 +504,7 @@ pub(crate) fn vcd_parser(input: &str) -> std::result::Result<VcdDb, VcdError> {
                                                 let mut diagnosis = BadVCDReport::new();
                                                 diagnosis.recovered_buff = casted.clone();
                                                 diagnosis.error_start_line = readed_line;
+                                                diagnosis.possible_error = format!("found bad variable def at line {}",readed_line);                                                
                                                 VcdError::BadVCD(diagnosis)
                                             })?;
                                         vcd_db.variable.push(res.1);
@@ -694,6 +677,7 @@ mod test {
         let plain1 = "$var wire 1 ! D0 $end";
         let plain2 = "$var wire 1 \" D1 $end";
         let plain3 = "$var reg 32 0 raddr [31:0] $end";
+        let plain4 = "$var reg 1 Q mem_read $end";
 
         assert_eq!(
             vcd_variable_def_parser(plain1),
@@ -733,6 +717,20 @@ mod test {
                         var_type: VarType::Reg,
                         name: "raddr".to_string(),
                         width: 32
+                    }
+                )
+            ))
+        );
+        assert_eq!(
+            vcd_variable_def_parser(plain4),
+            Ok((
+                "",
+                (
+                    "Q".to_string(),
+                    Variable {
+                        var_type: VarType::Reg,
+                        name: "mem_read".to_string(),
+                        width: 1
                     }
                 )
             ))
