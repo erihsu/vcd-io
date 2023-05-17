@@ -1,3 +1,4 @@
+[![vcd-io project action](https://github.com/erihsu/vcd-io/actions/workflows/automation.yml/badge.svg?branch=main)](https://github.com/erihsu/vcd-io/actions/workflows/automation.yml)
 # vcd-io
 VCD(Value Change Dump) spec parser/saver
 
