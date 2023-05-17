@@ -71,4 +71,4 @@ jobs:
       - name: Upload to codecov.io
         uses: codecov/codecov-action@v3
         with:
-          files: */*.lcov
+          files: ./**/*.lcov
