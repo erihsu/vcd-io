@@ -7,8 +7,6 @@ jobs:
     steps: 
       - name: Rust Action
         uses: icepuma/rust-action@1.68.0
-      - name: Upload coverage reports to Codecov
-        uses: codecov/codecov-action@v3
         
   rust-clippy-analyze:
     name: Run rust-clippy analyzing
@@ -43,3 +41,10 @@ jobs:
         with:
           sarif_file: rust-clippy-results.sarif
           wait-for-processing: true
+
+
+  cov-analyze:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Upload coverage reports to Codecov
+        uses: codecov/codecov-action@v3
