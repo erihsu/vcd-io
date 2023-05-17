@@ -46,11 +46,14 @@ jobs:
   cov-analyze:
     runs-on: ubuntu-latest
     steps:
-      - name: generate coverage report and upload to codecov
+      - name: generate coverage report
         run: |
           rustup component add llvm-tools-preview
           cargo install grcov cargo-nextest
           CARGO_INCREMENTAL=0 RUSTFLAGS='-Cinstrument-coverage' LLVM_PROFILE_FILE='cargo-test-%p-%m.profraw' cargo nextest run
-          grcov . --binary-path ./target/debug/deps/ -s . -t lcov --branch --ignore-not-existing --ignore '../*' --ignore "/*" -o target/cov/tests.lcov
-          bash <(curl -s https://codecov.io/bash) &&
-          echo "Uploaded code coverage"
+          grcov . --binary-path ./target/debug/deps/ -s . -t lcov --branch --ignore-not-existing --ignore '../*' --ignore "/*" -o target/coverage/tests.lcov
+      
+      - name: Upload to codecov.io
+        uses: codecov/codecov-action@v3
+        with:
+          files: coverage/*.lcov
