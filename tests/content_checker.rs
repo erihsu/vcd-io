@@ -53,6 +53,12 @@ fn content_checker2() {
         filename
     )) {
         Ok(vcd_db) => {
+            assert_eq!(vcd_db.comment, "Csum: 1 9dbd5495f6f474ca".to_string());
+            assert_eq!(vcd_db.date, "Fri Jul 16 15:30:13 2021".to_string());
+            assert_eq!(
+                vcd_db.version,
+                "Synopsys VCS version R-2020.12-SP1_Full64".to_string()
+            );
             assert_eq!(vcd_db.var_id_map.get("4"), Some(&25usize));
             assert_eq!(vcd_db.var_id_map.get(","), Some(&15usize));
             assert_eq!(vcd_db.var_id_map.get("2"), Some(&23usize));
@@ -83,6 +89,28 @@ fn content_checker3() {
                     ScalarValue::ZeroOne(false),
                     ScalarValue::ZeroOne(true),
                 ])
+            );
+        }
+        Err(e) => {
+            panic!("{:?}", e);
+            // assert!(false);
+        }
+    }
+}
+
+#[test]
+fn content_checker4() {
+    let filename = "handy2.vcd";
+    match parse_vcd(&format!(
+        "{}/testcases/{}",
+        std::env::var("CARGO_MANIFEST_DIR").unwrap(),
+        filename
+    )) {
+        Ok(vcd_db) => {
+            assert_eq!(vcd_db.date, "Fri Jul 16 15:30:13 2021".to_string());
+            assert_eq!(
+                vcd_db.version,
+                "Synopsys VCS version R-2020.12-SP1_Full64".to_string()
             );
         }
         Err(e) => {

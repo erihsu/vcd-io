@@ -245,7 +245,7 @@ pub(crate) fn vcd_dumpctrl_parser(input: &str) -> VcdRes<&str, VcdDumpCtrl> {
 //     )(input)
 // }
 
-#[derive(PartialEq, Debug)]
+#[derive(PartialEq, Debug, Copy, Clone)]
 pub enum VcdTag {
     Timestamp, // timestamp start with #
     Date,
@@ -315,8 +315,13 @@ fn peak_tag(input: &str) -> Option<VcdTag> {
     }
 }
 
-fn check_end(input: &str) -> bool {
-    input.trim_end().ends_with("$end")
+fn check_end(input: &[String]) -> bool {
+    let mut contained = false;
+    if check_end_contained(input.last().unwrap()) {
+        contained = true
+    }
+
+    contained
 }
 
 fn check_end_contained(input: &str) -> bool {
@@ -346,6 +351,7 @@ where
     Ok(io::BufReader::new(file).lines())
 }
 
+// input is file path
 pub(crate) fn vcd_parser(input: &str) -> std::result::Result<VcdDb, VcdError> {
     // let mut cursor = io::Cursor::new(input);
     let mut vcd_db = VcdDb::new();
@@ -359,6 +365,7 @@ pub(crate) fn vcd_parser(input: &str) -> std::result::Result<VcdDb, VcdError> {
     let _has_dumpvars = RefCell::new(false);
     let mut statement_start_without_end = false;
     let mut readed_line: u64 = 0;
+    let mut onprocess_tag = VcdTag::Untagged;
     let mut buff = vec![];
 
     if let Ok(lines) = read_lines(input) {
@@ -366,7 +373,16 @@ pub(crate) fn vcd_parser(input: &str) -> std::result::Result<VcdDb, VcdError> {
         for line in lines {
             let rcvd_leading_tag = if let Ok(ref slice) = line {
                 if !slice.is_empty() {
-                    peak_tag(slice)
+                    let peaked = peak_tag(slice);
+                    if let Some(tag) = peaked {
+                        if tag != VcdTag::End
+                            && tag != VcdTag::Unsupported
+                            && tag != VcdTag::Untagged
+                        {
+                            onprocess_tag = tag;
+                        }
+                    }
+                    peaked
                 } else {
                     None
                 }
@@ -396,10 +412,11 @@ pub(crate) fn vcd_parser(input: &str) -> std::result::Result<VcdDb, VcdError> {
                     } else {
                         // normal flow, not expect exception here
                         readed_line += 1;
-                        if leading_tag == VcdTag::Untagged
+                        /*if leading_tag == VcdTag::Untagged
                         && (timestamp_rcvd || statement_start_without_end) {
                         	buff.push(line.unwrap());
-                        } else if leading_tag == VcdTag::Timestamp {
+                        } else */
+                        if leading_tag == VcdTag::Timestamp {
                             timestamp_rcvd = true;
                             if buff.is_empty() {
                                 buff.push(line.unwrap());
@@ -450,15 +467,16 @@ pub(crate) fn vcd_parser(input: &str) -> std::result::Result<VcdDb, VcdError> {
                         	} else {
                         		buff.push(line.unwrap());
                         	}
-                            let casted = buff.join("\n");
-                            if check_end(&casted) || check_end_contained(&casted) {
+                            // let casted = buff.join("\n");
+                            // println!("casted is {:?}", casted);
+                            if check_end(&buff) {
                                 // 1.reset state
                                 statement_start_without_end = false;
                                 // 2.get casted
-                                let casted = buff.join("\n");
+                                let casted = buff.join("\n");                           
                                 // 3.clear buff
                                 buff.clear();
-                                match leading_tag {
+                                match onprocess_tag {
                                     VcdTag::Version => {
                                         let (_, version) =
                                             vcd_version_parser(&casted).map_err(|_| {
@@ -601,6 +619,29 @@ mod test {
         assert_eq!(peak_tag("$date\n\n"), Some(VcdTag::Date));
         assert_eq!(peak_tag("$date"), Some(VcdTag::Date));
         assert_eq!(peak_tag("$date today"), Some(VcdTag::Date));
+        assert_eq!(peak_tag("\nABCD\n"), Some(VcdTag::Untagged));
+        assert_eq!(peak_tag("\n  ABCD"), Some(VcdTag::Untagged));
+    }
+
+    #[test]
+    fn test_vcd_date_parser() {
+        assert_eq!(
+            vcd_date_parser("$date\n  Fri Jul 16 15:30:13 2021\n$end\n"),
+            Ok(("\n", "Fri Jul 16 15:30:13 2021"))
+        );
+        assert_eq!(
+            vcd_date_parser("$date \n\tFri Jul 16 15:30:13 2021 $end"),
+            Ok(("", "Fri Jul 16 15:30:13 2021"))
+        );
+
+        assert_eq!(
+            vcd_date_parser("\n$date\n\nFri Jul 16 15:30:13 2021\n\n$end"),
+            Ok(("", "Fri Jul 16 15:30:13 2021"))
+        );
+        assert_eq!(
+            vcd_date_parser("\n$date\n\nFri Jul 16 15:30:13 2021\n\n\n\n$end"),
+            Ok(("", "Fri Jul 16 15:30:13 2021"))
+        );
     }
 
     #[test]
@@ -669,6 +710,14 @@ mod test {
         assert_eq!(
             vcd_variable_val_parser("x&\n"),
             Ok(("\n", (VarValue::Scalar(ScalarValue::Xstate), "&")))
+        );
+    }
+
+    #[test]
+    fn test_check_end() {
+        assert_eq!(
+            check_end_contained("$date \n\tFri Jul 16 15:30:13 2021 $end"),
+            true
         );
     }
 
@@ -804,70 +853,5 @@ mod test {
             vcd_variable_parser(plain),
             Ok(("\n", (0, expected_result,)))
         );
-    }
-
-    // #[test]
-    fn test_vcd_parser() {
-        let vcd_plain = concat!(
-            "$date Date text. For example: November 11, 2009. $end\n",
-            "$version VCD generator tool version info text. $end\n",
-            "$comment Any comment text. $end\n",
-            "$timescale 1ps $end\n",
-            "$scope module logic $end\n",
-            "$var wire 8 # data $end\n",
-            "$var wire 1 $ data_valid $end\n",
-            "$var wire 1 % en $end\n",
-            "$var wire 1 & rx_en $end\n",
-            "$var wire 1 ' tx_en $end\n",
-            "$var wire 1 ( empty $end\n",
-            "$var wire 1 ) underrun $end\n",
-            "$upscope $end\n",
-            "$enddefinitions $end\n",
-            "$dumpvars\n",
-            "bxxxxxxxx #\n",
-            "x$\n",
-            "0%\n",
-            "x&\n",
-            "x'\n",
-            "1(\n",
-            "0)\n",
-            "$end",
-            "#0\n",
-            "b10000001 #\n",
-            "0$\n",
-            "1%\n",
-            "0&\n",
-            "1'\n",
-            "0(\n",
-            "0)\n",
-            "#2211\n",
-            "0'\n",
-            "#2296\n",
-            "b0 #\n",
-            "1$\n",
-            "#2302\n",
-            "0$\n",
-            "#2303\n",
-        );
-        let vcd_db: VcdDb = vcd_parser(&vcd_plain).unwrap();
-        assert_eq!(
-            vcd_db.date,
-            "Date text. For example: November 11, 2009.".to_string()
-        );
-        assert_eq!(vcd_db.comment, "Any comment text.".to_string());
-        assert_eq!(
-            vcd_db.version,
-            "VCD generator tool version info text.".to_string()
-        );
-        assert_eq!(vcd_db.timescale.1, TimeUnit::Psec);
-        assert_eq!(
-            vcd_db.variable[0],
-            Variable {
-                var_type: VarType::Wire,
-                name: "data".to_string(),
-                width: 8
-            }
-        );
-        assert_eq!(vcd_db.var_id_map.get("#"), Some(&0));
     }
 }

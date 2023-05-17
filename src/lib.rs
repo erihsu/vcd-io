@@ -11,7 +11,7 @@ use parser::vcd_parser;
 
 use crate::error::VcdError;
 
-#[derive(PartialEq, Debug)]
+#[derive(PartialEq, Debug, Copy, Clone)]
 pub enum TimeUnit {
     Psec,
     Nsec,

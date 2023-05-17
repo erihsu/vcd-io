@@ -58,3 +58,18 @@ fn parser_test8() {
 fn parser_test9() {
     vcd_picker!("wire_types.vcd");
 }
+
+#[test]
+fn parser_test10() {
+    vcd_picker!("handy.vcd");
+}
+
+#[test]
+fn parser_test11() {
+    vcd_picker!("handy2.vcd");
+}
+
+#[test]
+fn parser_test12() {
+    vcd_picker!("handy3.vcd");
+}
