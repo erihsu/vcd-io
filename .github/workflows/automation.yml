@@ -1,13 +1,7 @@
 on: [push]
 name: vcd-io project action
 
-jobs: 
-  build:
-    runs-on: ubuntu-latest
-    steps: 
-      - name: Rust Action
-        uses: icepuma/rust-action@1.68.0
-        
+jobs:   
   rust-clippy-analyze:
     name: Run rust-clippy analyzing
     runs-on: ubuntu-latest
@@ -15,8 +9,8 @@ jobs:
       contents: read
       security-events: write
     steps:
-      - name: Rust Action
-        uses: icepuma/rust-action@1.68.0
+      - name: Checkout code
+        uses: actions/checkout@v2
 
       - name: Install Rust toolchain
         uses: actions-rs/toolchain@16499b5e05bf2e26879000db0c1d13f7e13fa3af #@v1
@@ -30,7 +24,8 @@ jobs:
         run: cargo install clippy-sarif sarif-fmt
 
       - name: Run rust-clippy
-        run:
+        run: |
+          cd /home/runner/_work/vcd-io/vcd-io
           cargo clippy
           --all-features
           --message-format=json | clippy-sarif | tee rust-clippy-results.sarif | sarif-fmt
@@ -46,32 +41,12 @@ jobs:
   cov-analyze:
     runs-on: ubuntu-latest
     steps:
-      - name: Rust Action
-        uses: icepuma/rust-action@1.68.0
-              
-      - name: Install toolchain
-        uses: actions-rs/toolchain@v1
-        with:
-          toolchain: nightly
-          override: true
-          profile: minimal
-
-      - name: Execute tests
-        uses: actions-rs/cargo@v1
-        with:
-          command: test
-          args: --all
-        env:
-          CARGO_INCREMENTAL: 0
-          RUSTFLAGS: "-Zprofile -Ccodegen-units=1 -Cinline-threshold=0 -Clink-dead-code -Coverflow-checks=off -Cpanic=abort -Zpanic_abort_tests"
-
-      - name: Pre-installing grcov
-        uses: actions-rs/install@v0.1
-        with:
-          crate: grcov
-          use-tool-cache: true
-
-      - name: Upload to codecov.io
-        uses: codecov/codecov-action@v3
-        with:
-          files: ./**/*.lcov
+      - name: generate coverage report and upload to codecov
+        run: |
+          rustup component add llvm-tools-preview
+          cargo install grcov cargo-nextest
+          cd /home/runner/_work/vcd-io/vcd-io
+          CARGO_INCREMENTAL=0 RUSTFLAGS='-Cinstrument-coverage' LLVM_PROFILE_FILE='cargo-test-%p-%m.profraw' cargo nextest run
+          grcov . --binary-path ./target/debug/deps/ -s . -t lcov --branch --ignore-not-existing --ignore '../*' --ignore "/*" -o target/cov/tests.lcov
+          bash <(curl -s https://codecov.io/bash) &&
+          echo "Uploaded code coverage"
