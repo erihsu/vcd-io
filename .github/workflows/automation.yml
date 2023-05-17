@@ -46,7 +46,6 @@ jobs:
   cov-analyze:
     runs-on: ubuntu-latest
     steps:
-    steps:
       - name: Install toolchain
         uses: actions-rs/toolchain@v1
         with:
@@ -63,11 +62,6 @@ jobs:
           CARGO_INCREMENTAL: 0
           RUSTFLAGS: "-Zprofile -Ccodegen-units=1 -Cinline-threshold=0 -Clink-dead-code -Coverflow-checks=off -Cpanic=abort -Zpanic_abort_tests"
 
-      # Note that `actions-rs/grcov` Action can install `grcov` too,
-      # but can't use faster installation methods yet.
-      # As a temporary experiment `actions-rs/install` Action plugged in here.
-      # Consider **NOT** to copy that into your workflow,
-      # but use `actions-rs/grcov` only
       - name: Pre-installing grcov
         uses: actions-rs/install@v0.1
         with:
