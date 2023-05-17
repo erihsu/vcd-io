@@ -25,7 +25,6 @@ jobs:
 
       - name: Run rust-clippy
         run: |
-          cd /home/runner/_work/vcd-io/vcd-io
           cargo clippy
           --all-features
           --message-format=json | clippy-sarif | tee rust-clippy-results.sarif | sarif-fmt
@@ -45,7 +44,7 @@ jobs:
         run: |
           rustup component add llvm-tools-preview
           cargo install grcov cargo-nextest
-          cd /home/runner/_work/vcd-io/vcd-io
+          echo $(pwd)
           CARGO_INCREMENTAL=0 RUSTFLAGS='-Cinstrument-coverage' LLVM_PROFILE_FILE='cargo-test-%p-%m.profraw' cargo nextest run
           grcov . --binary-path ./target/debug/deps/ -s . -t lcov --branch --ignore-not-existing --ignore '../*' --ignore "/*" -o target/cov/tests.lcov
           bash <(curl -s https://codecov.io/bash) &&
