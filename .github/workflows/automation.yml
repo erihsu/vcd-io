@@ -46,18 +46,10 @@ jobs:
   cov-analyze:
     runs-on: ubuntu-latest
     steps:
-      - name: generate report and upload to codecov
+      - name: generate coverage report and upload to codecov
         run: |
-          wget https://github.com/SimonKagstrom/kcov/archive/master.tar.gz &&
-          tar xzf master.tar.gz &&
-          cd kcov-master &&
-          mkdir build &&
-          cd build &&
-          cmake .. &&
-          make &&
-          make install DESTDIR=../../kcov-build &&
-          cd ../.. &&
-          rm -rf kcov-master &&
-          for file in target/debug/vcd_io-*; do [ -x "${file}" ] || continue; mkdir -p "target/cov/$(basename $file)"; ./kcov-build/usr/local/bin/kcov --exclude-pattern=/.cargo,/usr/lib --verify "target/cov/$(basename $file)" "$file"; done &&
+          rustup component add llvm-tools-preview
+          cargo install grcov nextest
+          grcov . --binary-path ./target/debug/deps/ -s . -t lcov --branch --ignore-not-existing --ignore '../*' --ignore "/*" -o target/cov/tests.lcov
           bash <(curl -s https://codecov.io/bash) &&
           echo "Uploaded code coverage"
