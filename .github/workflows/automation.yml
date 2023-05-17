@@ -46,6 +46,9 @@ jobs:
   cov-analyze:
     runs-on: ubuntu-latest
     steps:
+      - name: Rust Action
+        uses: icepuma/rust-action@1.68.0
+              
       - name: Install toolchain
         uses: actions-rs/toolchain@v1
         with:
