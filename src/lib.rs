@@ -34,13 +34,41 @@ impl Display for TimeUnit {
     }
 }
 
-#[derive(PartialEq, Debug)]
+#[derive(PartialEq, Debug, Copy, Clone)]
 pub enum VarType {
     Wire,
     Reg,
     TriReg,
     Integer,
     Port,
+}
+
+impl TryFrom<u8> for VarType {
+    type Error = &'static str;
+
+    fn try_from(data: u8) -> Result<Self, Self::Error> {
+        match data {
+            0 => Ok(VarType::Wire),
+            1 => Ok(VarType::Reg),
+            2 => Ok(VarType::TriReg),
+            3 => Ok(VarType::Integer),
+            4 => Ok(VarType::Port),
+            _ => Err("bad encoded variable type"),
+        }
+    }
+}
+
+impl From<VarType> for u8 {
+    fn from(data: VarType) -> Self {
+        let exp: u8 = match data {
+            VarType::Wire => 0,
+            VarType::Reg => 1,
+            VarType::TriReg => 2,
+            VarType::Integer => 3,
+            VarType::Port => 4,
+        };
+        exp
+    }
 }
 
 impl Display for VarType {
@@ -55,11 +83,38 @@ impl Display for VarType {
     }
 }
 
+#[derive(PartialEq, Debug, Copy, Clone)]
 pub enum ScopeType {
     Module,
     Task,
     Function,
     Fork,
+}
+
+impl TryFrom<u8> for ScopeType {
+    type Error = &'static str;
+
+    fn try_from(data: u8) -> Result<Self, Self::Error> {
+        match data {
+            0 => Ok(ScopeType::Module),
+            1 => Ok(ScopeType::Task),
+            2 => Ok(ScopeType::Function),
+            3 => Ok(ScopeType::Fork),
+            _ => Err("bad encoded variable type"),
+        }
+    }
+}
+
+impl From<ScopeType> for u8 {
+    fn from(data: ScopeType) -> Self {
+        let exp: u8 = match data {
+            ScopeType::Module => 0,
+            ScopeType::Task => 1,
+            ScopeType::Function => 2,
+            ScopeType::Fork => 3,
+        };
+        exp
+    }
 }
 
 impl Display for ScopeType {
@@ -130,9 +185,9 @@ impl Display for VarValue {
 
 #[derive(PartialEq, Debug)]
 pub struct Variable {
-    var_type: VarType,
-    name: String,
-    width: u16,
+    pub var_type: VarType,
+    pub name: String,
+    pub width: u16,
 }
 
 impl Variable {
