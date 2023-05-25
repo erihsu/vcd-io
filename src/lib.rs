@@ -183,17 +183,11 @@ impl Display for VarValue {
     }
 }
 
-#[derive(PartialEq, Debug)]
+#[derive(PartialEq, Debug, Clone)]
 pub struct Variable {
     pub var_type: VarType,
     pub name: String,
     pub width: u16,
-}
-
-impl Variable {
-    pub fn get_width(&self) -> u16 {
-        self.width
-    }
 }
 
 pub struct Scope {
@@ -226,6 +220,7 @@ pub struct VcdDb {
     pub scope: Vec<Scope>,
     // list of variable
     pub variable: Vec<Variable>,
+    // 1st dimension is timestamp, 2nd dimension is signal
     pub var_value: Vec<Vec<VarValue>>,
     // <variable identifier, variable index> mapping
     pub var_id_map: HashMap<String, VariableIndex>,
