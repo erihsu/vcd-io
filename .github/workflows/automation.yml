@@ -10,7 +10,7 @@ jobs:
         rust: [stable]
     steps:
     - uses: actions/checkout@master
-    - uses: erihsu/setup-rust-action@v1
+    - uses: hecrj/setup-rust-action@v1
       with:
         rust-version: ${{ matrix.rust }}
     - name: Run tests
