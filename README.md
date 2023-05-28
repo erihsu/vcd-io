@@ -1,4 +1,4 @@
-[![coverage](https://github.com/erihsu/vcd-io/actions/workflows/automation.yml/badge.svg?branch=main)](https://github.com/erihsu/vcd-io/actions/workflows/automation.yml)
+[![test](https://github.com/erihsu/vcd-io/actions/workflows/automation.yml/badge.svg?branch=main)](https://github.com/erihsu/vcd-io/actions)
 # vcd-io
 VCD(Value Change Dump) spec parser/saver
 
