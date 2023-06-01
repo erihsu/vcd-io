@@ -128,7 +128,7 @@ impl Display for ScopeType {
     }
 }
 
-#[derive(PartialEq, Debug, Clone)]
+#[derive(PartialEq, Debug, Clone, Copy)]
 pub enum ScalarValue {
     ZeroOne(bool),
     Xstate,
@@ -148,6 +148,12 @@ impl Display for ScalarValue {
     }
 }
 
+impl Default for ScalarValue {
+    fn default() -> Self {
+        ScalarValue::Xstate
+    }
+}
+
 impl std::ops::Not for ScalarValue {
     type Output = Self;
 
@@ -156,6 +162,20 @@ impl std::ops::Not for ScalarValue {
             ScalarValue::ZeroOne(b) => ScalarValue::ZeroOne(!b),
             ScalarValue::Xstate => ScalarValue::Xstate,
             ScalarValue::Zstate => ScalarValue::Zstate,
+        }
+    }
+}
+
+impl std::ops::BitXor for ScalarValue {
+    type Output = Self;
+
+    fn bitxor(self, rhs: Self) -> Self::Output {
+        match (self, rhs) {
+            (ScalarValue::ZeroOne(s1), ScalarValue::ZeroOne(s2)) => ScalarValue::ZeroOne(s1 ^ s2),
+            (ScalarValue::Xstate, _)
+            | (ScalarValue::Zstate, _)
+            | (_, ScalarValue::Xstate)
+            | (_, ScalarValue::Zstate) => ScalarValue::ZeroOne(false),
         }
     }
 }
