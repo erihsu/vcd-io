@@ -1,16 +1,17 @@
-on: [push]
+on: [push, pull_request]
 name: vcd-io project action
 
 jobs:
-  cov-analyze:
-    runs-on: ubuntu-latest
+  native:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-latest, windows-latest, macOS-latest]
+        rust: [stable]
     steps:
-      - name: generate coverage report and upload to codecov
-        run: |
-          rustup component add llvm-tools-preview
-          cargo install grcov cargo-nextest
-          echo $(pwd)
-          CARGO_INCREMENTAL=0 RUSTFLAGS='-Cinstrument-coverage' LLVM_PROFILE_FILE='cargo-test-%p-%m.profraw' cargo nextest run
-          grcov . --binary-path ./target/debug/deps/ -s . -t lcov --branch --ignore-not-existing --ignore '../*' --ignore "/*" -o target/cov/tests.lcov
-          bash <(curl -s https://codecov.io/bash) &&
-          echo "Uploaded code coverage"
+    - uses: actions/checkout@master
+    - uses: hecrj/setup-rust-action@v1
+      with:
+        rust-version: ${{ matrix.rust }}
+    - name: Run tests
+      run: cargo test --verbose
