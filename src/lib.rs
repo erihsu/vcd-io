@@ -211,10 +211,10 @@ pub struct Variable {
 }
 
 pub struct Scope {
-    scope_type: ScopeType,
-    scope_name: String,
-    sub_scope_idx: Vec<ScopeIndex>,
-    variables: Vec<VariableIndex>,
+    pub scope_type: ScopeType,
+    pub scope_name: String,
+    pub sub_scope_idx: Vec<ScopeIndex>,
+    pub variables: Vec<VariableIndex>,
 }
 
 use std::collections::HashMap;
