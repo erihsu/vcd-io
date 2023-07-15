@@ -210,6 +210,7 @@ pub struct Variable {
     pub width: u16,
 }
 
+#[derive(PartialEq, Debug, Clone)]
 pub struct Scope {
     pub scope_type: ScopeType,
     pub scope_name: String,
