@@ -1,8 +1,10 @@
+#![allow(dead_code)]
 // const VCD_KEYWORDS: [&str;12] =
 // 			["$commet","$date","$end","$timescale","$var",
 // 			"$upscope","$enddefinitions","$dumpvars","$version","$dumpall",
 // 			"$scope","dumpoff","dumpon"];
-#![allow(dead_code)]
+use serde::{Serialize, Deserialize};
+
 mod error;
 mod parser;
 mod saver;
@@ -11,7 +13,7 @@ use parser::vcd_parser;
 
 use crate::error::VcdError;
 
-#[derive(PartialEq, Debug, Copy, Clone)]
+#[derive(PartialEq, Debug, Copy, Clone,Serialize, Deserialize)]
 pub enum TimeUnit {
     Psec,
     Nsec,
@@ -34,7 +36,7 @@ impl Display for TimeUnit {
     }
 }
 
-#[derive(PartialEq, Debug, Copy, Clone)]
+#[derive(PartialEq, Debug, Copy, Clone,Serialize, Deserialize)]
 pub enum VarType {
     Wire,
     Reg,
@@ -83,7 +85,7 @@ impl Display for VarType {
     }
 }
 
-#[derive(PartialEq, Debug, Copy, Clone)]
+#[derive(PartialEq, Debug, Copy, Clone,Serialize,Deserialize)]
 pub enum ScopeType {
     Module,
     Task,
@@ -203,7 +205,7 @@ impl Display for VarValue {
     }
 }
 
-#[derive(PartialEq, Debug, Clone)]
+#[derive(PartialEq, Debug, Clone,Serialize, Deserialize)]
 pub struct Variable {
     pub var_type: VarType,
     pub name: String,
