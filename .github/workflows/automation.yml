@@ -13,5 +13,5 @@ jobs:
     - uses: hecrj/setup-rust-action@v1
       with:
         rust-version: ${{ matrix.rust }}
-    - name: Run tests
-      run: cargo test --verbose
+    - name: Run tests on default dev feature
+      run: cargo test --verbose --features dev
