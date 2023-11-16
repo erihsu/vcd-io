@@ -1,6 +1,6 @@
 [package]
 name = "vcd_io"
-version = "0.2.10"
+version = "0.2.11"
 edition = "2021"
 keywords = ["parser","eda","waveform","verification","science"]
 readme = "README.md"
@@ -12,9 +12,14 @@ exclude = [
 	"tests/*",
 ]
 
+[features]
+dev = ["dep:rand","dep:random-string"]
+
 [dependencies]
 nom = "7.0"
 byteorder = "1.4.3"
 thiserror = "1.0"
 serde = {version = "1.0",features = ["derive"]}
 serde_derive = "1.0"
+rand = {version = "0.8", optional = true}
+random-string = {version = "1.0", optional = true}

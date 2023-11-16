@@ -137,6 +137,41 @@ pub enum ScalarValue {
     Zstate,
 }
 
+#[cfg(feature = "dev")]
+use rand::{
+    distributions::{Distribution, Standard},
+    Rng,
+};
+
+#[cfg(feature = "dev")]
+impl Distribution<ScalarValue> for Standard {
+    fn sample<R: Rng + ?Sized>(&self, rng: &mut R) -> ScalarValue {
+        match rng.gen_range(0..=3) {
+            0 => ScalarValue::ZeroOne(true),
+            1 => ScalarValue::ZeroOne(false),
+            2 => ScalarValue::Xstate,
+            3 => ScalarValue::Zstate,
+            _ => ScalarValue::ZeroOne(false),
+        }
+    }
+}
+
+#[cfg(feature = "dev")]
+impl Distribution<VarType> for Standard {
+    fn sample<R: Rng + ?Sized>(&self, rng: &mut R) -> VarType {
+        match rng.gen_range(0..=3) {
+            0 => VarType::Port,
+            1 => VarType::Reg,
+            2 => VarType::TriReg,
+            3 => VarType::Integer,
+            _ => VarType::Wire,
+        }
+    }
+
+    // other methods in Distribution are derived from `sample`
+}
+
+
 impl Display for ScalarValue {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match &self {
@@ -259,6 +294,55 @@ impl VcdDb {
     pub fn new() -> Self {
         VcdDb::default()
     }
+
+    pub fn aligned(&self) -> bool {
+        let var_num = self.variable.len();
+        for val in &self.var_value {
+            if val.len() != var_num {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    // result: 
+    // 1. clean data in padding value and align data in var_value
+    // 2. clean data in value_var_map
+    pub fn align_var_value(&mut self) -> bool {
+        let var_num = self.variable.len();
+        let mut prev_cycle_data = self.var_value[0].clone();
+        let mut curr_cycle_data = prev_cycle_data.clone();
+        println!("total var num {:?}", curr_cycle_data.len());
+        let mut mask:Vec<bool> = std::iter::repeat(false).take(var_num).collect();
+        let mut internal_cursor = 0;
+
+        for (i,padding) in self.padding_value[1..].iter().enumerate() {
+            if padding.len() + self.var_value[i+1].len() != var_num {
+                // broken data
+                return false;
+            }
+            for p in padding {
+                mask[*p] = true;
+            }
+            mask.iter().enumerate().for_each(|(j,is_masked)|{
+                if *is_masked {
+                    curr_cycle_data[j] = prev_cycle_data[j].clone();
+                } else {
+                    curr_cycle_data[j] = self.var_value[i+1][internal_cursor].clone();
+                    internal_cursor += 1;
+                }
+            });
+
+            self.var_value[i+1] = curr_cycle_data.clone();
+            prev_cycle_data = curr_cycle_data.clone();
+            internal_cursor = 0;
+        }
+
+        self.padding_value.clear();
+        true
+    }
+
+
 }
 
 impl Default for VcdDb {
