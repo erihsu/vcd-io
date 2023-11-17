@@ -13,13 +13,10 @@ $var wire 1 1 D3 $end
 $var wire 4 2 Data $end
 $upscope $end
 $enddefinitions $end
-#0 1! 0" 0# 1$ b1100 &
+#0 1! 0" 0# 1$ b1100 & 10 11 b1111 2
 #1 0! 1" 1# 0$ 
 #2 b1101 &
 #3 b0001 &
-b0001 1
-b0001 0
-b0001 2
 #4 1! 0" 1$ 
 #5 1" 
 #6 b0011 &

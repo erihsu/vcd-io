@@ -82,7 +82,7 @@ fn content_checker3() {
     )) {
         Ok(vcd_db) => {
             assert_eq!(
-                vcd_db.var_value[3][1],
+                vcd_db.var_value[3][0],
                 VarValue::Vector(vec![
                     ScalarValue::ZeroOne(false),
                     ScalarValue::ZeroOne(false),
@@ -90,6 +90,8 @@ fn content_checker3() {
                     ScalarValue::ZeroOne(true),
                 ])
             );
+            assert_eq!(vcd_db.timestap.len(), 21);
+            assert_eq!(vcd_db.var_value.len(), 21);            
         }
         Err(e) => {
             panic!("{:?}", e);
@@ -112,6 +114,44 @@ fn content_checker4() {
                 vcd_db.version,
                 "Synopsys VCS version R-2020.12-SP1_Full64".to_string()
             );
+
+        }
+        Err(e) => {
+            panic!("{:?}", e);
+            // assert!(false);
+        }
+    }
+}
+
+#[test]
+fn content_checker5() {
+    let filename = "IEEE_std_example.vcd";
+    match parse_vcd(&format!(
+        "{}/testcases/{}",
+        std::env::var("CARGO_MANIFEST_DIR").unwrap(),
+        filename
+    )) {
+        Ok(vcd_db) => {
+            assert_eq!(vcd_db.date, "June 26, 1989 10:05:41".to_string());
+            assert_eq!(vcd_db.comment,"".to_string());
+            println!("var value {:?}", vcd_db.var_value);
+            assert_eq!(vcd_db.variable.len(),5);
+            assert_eq!(vcd_db.var_value[0][4],VarValue::Vector(vec![ScalarValue::Xstate,ScalarValue::Xstate,
+                                                                    ScalarValue::Xstate,ScalarValue::Xstate,
+                                                                    ScalarValue::Xstate,ScalarValue::Xstate,
+                                                                    ScalarValue::Xstate,ScalarValue::Xstate,
+                                                                    ScalarValue::Xstate,ScalarValue::Xstate,
+                                                                    ScalarValue::Xstate,ScalarValue::Xstate,
+                                                                    ScalarValue::Xstate,ScalarValue::Xstate,
+                                                                    ScalarValue::Xstate,ScalarValue::Xstate,
+                                                                    ScalarValue::Xstate,ScalarValue::Xstate,
+                                                                    ScalarValue::Xstate,ScalarValue::Xstate,
+                                                                    ScalarValue::Xstate,ScalarValue::Xstate,
+                                                                    ScalarValue::Xstate,ScalarValue::Xstate,
+                                                                    ScalarValue::Xstate,ScalarValue::Xstate,
+                                                                    ScalarValue::Xstate,ScalarValue::Xstate,
+                                                                    ScalarValue::Xstate,ScalarValue::Xstate,                                                                    
+                                                                    ScalarValue::Xstate,ScalarValue::Xstate]))
         }
         Err(e) => {
             panic!("{:?}", e);

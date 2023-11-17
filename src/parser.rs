@@ -351,6 +351,7 @@ where
     Ok(io::BufReader::new(file).lines())
 }
 
+
 // input is file path
 pub(crate) fn vcd_parser(input: &str) -> std::result::Result<VcdDb, VcdError> {
     // let mut cursor = io::Cursor::new(input);
@@ -435,28 +436,40 @@ pub(crate) fn vcd_parser(input: &str) -> std::result::Result<VcdDb, VcdError> {
                                 if vcd_db.var_value.is_empty() {
                                     let mut zero_stamp_values: Vec<VarValue> = vec![];
                                     let mut padding_vec = vec![];
-                                    res.1.iter().enumerate().for_each(|(item1,item2)|{
+                                    for (item1,item2) in res.1.iter().enumerate() {
                                         let var_id = *vcd_db.var_id_map.get(item2.1).unwrap_or_else(||panic!("current id is {:?}, current var id map {:?}", item2.1,vcd_db.var_id_map));
                                         let target_width = vcd_db.variable[var_id].width as usize;
                                         let mut un_padding = (item2.0).clone();
-                                        un_padding.padding(target_width);
+                                        if !un_padding.padding(target_width) {
+                                            let mut diagnosis = BadVCDReport::new();
+                                            diagnosis.recovered_buff = casted.clone();
+                                            diagnosis.error_start_line = readed_line;
+                                            diagnosis.possible_error = format!("found invalid variable var at line {}",readed_line);  
+                                            return Err(VcdError::BadVCD(diagnosis));
+                                        }
                                         zero_stamp_values.push(un_padding);
                                         vcd_db.value_var_map.insert(item1, (item2.1).to_string());
                                         padding_vec.push(var_id); // TODO add sever fatal                                                                                
-                                    });
+                                    }
                                     vcd_db.padding_value.push(padding_vec);
                                     vcd_db.var_value.push(zero_stamp_values);
                                 } else {
                                     let mut padding_vec = vec![];
                                     let mut value_vec = vec![];
-                                    res.1.iter().for_each(|item|{
+                                    for item in res.1 {
                                         let var_id = *vcd_db.var_id_map.get(item.1).unwrap_or_else(||panic!("current id is {:?}, current var id map {:?}", item.1,vcd_db.var_id_map));
                                         let target_width = vcd_db.variable[var_id].width as usize;
                                         let mut un_padding = (item.0).clone();
-                                        un_padding.padding(target_width);                                  
+                                        if !un_padding.padding(target_width) {
+                                            let mut diagnosis = BadVCDReport::new();
+                                            diagnosis.recovered_buff = casted.clone();
+                                            diagnosis.error_start_line = readed_line;
+                                            diagnosis.possible_error = format!("found invalid variable var at line {}",readed_line);  
+                                            return Err(VcdError::BadVCD(diagnosis));
+                                        }                                 
                                         padding_vec.push(var_id); // TODO add sever fatal
                                         value_vec.push(un_padding);
-                                    });
+                                    }
                                     vcd_db
                                         .var_value
                                         .push(value_vec);
@@ -571,7 +584,6 @@ pub(crate) fn vcd_parser(input: &str) -> std::result::Result<VcdDb, VcdError> {
 
 								    }
 								    _ => {
-
                                         // todo:
                                     }
                                 }
@@ -597,6 +609,63 @@ pub(crate) fn vcd_parser(input: &str) -> std::result::Result<VcdDb, VcdError> {
             if let Some(rpt) = exception_report {
                 return Err(VcdError::BadVCD(rpt));
             };
+        }
+
+        if timestamp_rcvd && !buff.is_empty() {
+            let casted = buff.join("\n");
+            let (_, res) = vcd_variable_parser(&casted).map_err(|_| {
+                let mut diagnosis = BadVCDReport::new();
+                diagnosis.recovered_buff = casted.clone();
+                diagnosis.error_start_line = readed_line;
+                diagnosis.possible_error = format!("found invalid variable var at line {}",readed_line);                              
+                VcdError::BadVCD(diagnosis)
+            })?;
+            vcd_db.timestap.push(res.0);
+            if vcd_db.var_value.is_empty() {
+                let mut zero_stamp_values: Vec<VarValue> = vec![];
+                let mut padding_vec = vec![];
+                for (item1,item2) in res.1.iter().enumerate() {
+                    let var_id = *vcd_db.var_id_map.get(item2.1).unwrap_or_else(||panic!("current id is {:?}, current var id map {:?}", item2.1,vcd_db.var_id_map));
+                    let target_width = vcd_db.variable[var_id].width as usize;
+                    let mut un_padding = (item2.0).clone();
+                    if !un_padding.padding(target_width) {
+                        let mut diagnosis = BadVCDReport::new();
+                        diagnosis.recovered_buff = casted.clone();
+                        diagnosis.error_start_line = readed_line;
+                        diagnosis.possible_error = format!("found invalid variable var at line {}",readed_line);  
+                        return Err(VcdError::BadVCD(diagnosis));
+                    }
+                    zero_stamp_values.push(un_padding);
+                    vcd_db.value_var_map.insert(item1, (item2.1).to_string());
+                    padding_vec.push(var_id); // TODO add sever fatal                                                                                
+                }
+                vcd_db.padding_value.push(padding_vec);
+                vcd_db.var_value.push(zero_stamp_values);
+            } else {
+                let mut padding_vec = vec![];
+                let mut value_vec = vec![];
+                for item in res.1 {
+                    let var_id = *vcd_db.var_id_map.get(item.1).unwrap_or_else(||panic!("current id is {:?}, current var id map {:?}", item.1,vcd_db.var_id_map));
+                    let target_width = vcd_db.variable[var_id].width as usize;
+                    let mut un_padding = (item.0).clone();
+                    if !un_padding.padding(target_width) {
+                        let mut diagnosis = BadVCDReport::new();
+                        diagnosis.recovered_buff = casted.clone();
+                        diagnosis.error_start_line = readed_line;
+                        diagnosis.possible_error = format!("found invalid variable var at line {}",readed_line);  
+                        return Err(VcdError::BadVCD(diagnosis));
+                    }                                 
+                    padding_vec.push(var_id); // TODO add sever fatal
+                    value_vec.push(un_padding);
+                }
+                vcd_db
+                    .var_value
+                    .push(value_vec);
+                vcd_db.padding_value.push(padding_vec);
+            }
+            // 2.
+            buff.clear();
+
         }
     }
     Ok(vcd_db)

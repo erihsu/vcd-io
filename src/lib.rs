@@ -224,8 +224,11 @@ pub enum VarValue {
     Real(String), // as we dont know real value type, can be converted later
 }
 impl VarValue {
-    pub fn padding(&mut self,target_width:usize) {
+    pub fn padding(&mut self,target_width:usize) -> bool {
         if let VarValue::Vector(ref mut vec) = self {
+            if target_width < vec.len() {
+                return false;
+            }
             let remain_bits = target_width - vec.len();
             if vec.len() == 1 {
                 if vec[0] != ScalarValue::ZeroOne(true) {
@@ -237,6 +240,7 @@ impl VarValue {
                 (0..remain_bits).into_iter().for_each(|_|vec.push(ScalarValue::ZeroOne(false)));
             }
         }
+        true
     }
 }
 

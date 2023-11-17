@@ -21,10 +21,8 @@ $comment
     All initial values are dumped at this time.
 $end
 #500
-$dumpvars
 x*@
 x*#
 x*$
 bx (k
 bx {2
-$end
