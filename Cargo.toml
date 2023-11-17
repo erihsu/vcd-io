@@ -1,6 +1,6 @@
 [package]
 name = "vcd_io"
-version = "0.2.11"
+version = "0.2.12"
 edition = "2021"
 keywords = ["parser","eda","waveform","verification","science"]
 readme = "README.md"
