@@ -1,0 +1,17 @@
+[tasks.clean]
+command = "cargo"
+args = ["clean"]
+
+
+[tasks.test]
+description = "Run unit tests"
+install_crate = "cargo-nextest"
+command = "cargo"
+args = ["nextest","run","--workspace"]
+dependencies = ["clean"]
+
+[tasks.perf]
+description = "Performance opt"
+install_crate = "flamegraph"
+command = "cargo"
+args = ["flamegraph","--test"]
