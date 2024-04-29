@@ -14,4 +14,6 @@ jobs:
       with:
         rust-version: ${{ matrix.rust }}
     - name: Run tests on default dev feature
-      run: cargo make test --verbose --features dev
+      run:
+        cargo install cargo-make
+        cargo make test --verbose --features dev
