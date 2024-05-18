@@ -10,6 +10,8 @@ pub enum VcdError {
         #[from]
         source: std::io::Error,
     },
+    #[error("internal error")]
+    InternalError,    
 }
 
 #[derive(Debug, Default)]

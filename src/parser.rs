@@ -283,7 +283,7 @@ impl Default for VcdTag {
 
 const SPLIT_PATTERN: [char; 1] = [' '];
 
-fn peak_tag(input: &str) -> Option<VcdTag> {
+pub fn peak_tag(input: &str) -> Option<VcdTag> {
     let trimed = input.trim();
     if trimed.starts_with('#') {
         Some(VcdTag::Timestamp)
@@ -315,7 +315,7 @@ fn peak_tag(input: &str) -> Option<VcdTag> {
     }
 }
 
-fn check_end(input: &[String]) -> bool {
+pub fn check_end(input: &[String]) -> bool {
     let mut contained = false;
     if check_end_contained(input.last().unwrap()) {
         contained = true
@@ -332,7 +332,7 @@ fn check_timestamp(input: &str) -> bool {
     input.starts_with('#')
 }
 
-fn check_skipped_after_timestamp(leading_tag: &VcdTag) -> bool {
+pub fn check_skipped_after_timestamp(leading_tag: &VcdTag) -> bool {
     *leading_tag == VcdTag::Comment
         || *leading_tag == VcdTag::Dumpports
         || *leading_tag == VcdTag::Dumpvars

@@ -3,13 +3,16 @@
 // 			["$commet","$date","$end","$timescale","$var",
 // 			"$upscope","$enddefinitions","$dumpvars","$version","$dumpall",
 // 			"$scope","dumpoff","dumpon"];
+use std::cell::RefCell;
+use crate::parser::*;
+use crate::error::BadVCDReport;
 use serde::{Serialize, Deserialize};
 
 mod error;
 mod parser;
 mod saver;
 
-use parser::vcd_parser;
+use parser::{VcdTag,vcd_parser};
 
 use crate::error::VcdError;
 
@@ -384,13 +387,6 @@ impl Default for VcdDb {
     }
 }
 
-pub fn multi_parse_vcd(file: &str) -> Result<VcdDb, VcdError> {
-    let (s, r) = std::sync::mpsc::channel();
-    s.send(std::fs::read_to_string(&file).unwrap()).unwrap();
-
-    let vcd: VcdDb = vcd_parser(&r.recv().unwrap())?;
-    Ok(vcd)
-}
 
 pub fn parse_vcd(file: &str) -> Result<VcdDb, VcdError> {
     // let report = VcdIoReport::new(&file);
@@ -398,3 +394,330 @@ pub fn parse_vcd(file: &str) -> Result<VcdDb, VcdError> {
     let vcd: VcdDb = vcd_parser(file)?;
     Ok(vcd)
 }
+
+#[derive(Default)]
+pub struct LineBuffer {
+    data:Vec<u8>,
+}
+
+use std::sync::mpsc::channel;
+
+
+pub fn mt_parse_vcd(reader:std::fs::File) -> std::result::Result<VcdDb, VcdError> {
+    let (sender, receiver) = channel::<LineBuffer>();
+
+    let hd = std::thread::spawn(move || {
+        let mut reader = ReaderWrap {reader,line_num:0u64};
+        if !reader.read(sender).is_ok() {
+            return Err(VcdError::InternalError);
+        }
+        Ok(())
+    });
+    let vcd = parse_by_line_buffer(receiver);
+
+    if !hd.join().is_ok() {
+        return Err(VcdError::InternalError);
+    }
+
+    vcd
+}
+
+
+use std::sync::mpsc::{Receiver,Sender};
+
+
+pub struct ReaderWrap<R:std::io::Read> {
+    reader:R,
+    line_num:u64,
+}
+
+impl<R: std::io::Read> ReaderWrap<R> {
+    fn read_byte_or_eof(&mut self) -> Result<Option<u8>, VcdError> {
+        let b = std::io::Read::bytes(&mut self.reader).next().transpose();
+
+        let end_of_line = matches!(b, Ok(Some(b'\n')));
+
+        // delay incrementing the line number until the first character of the next line
+        // so that errors at the end of the line refer to the correct line number
+        if end_of_line {
+            self.line_num += 1;
+        }
+
+        b.map_err(|_|VcdError::BadVCD(BadVCDReport{error_start_line:self.line_num,..Default::default()}))
+    }
+
+    fn read_byte(&mut self) -> Result<u8, VcdError> {
+        match self.read_byte_or_eof()? {
+            None => Err(VcdError::BadVCD(BadVCDReport{error_start_line:self.line_num,..Default::default()})),
+            Some(v) => Ok(v),
+        }
+    }
+
+
+    fn read(&mut self,sender:Sender<LineBuffer>) -> Result<(), VcdError>  {
+        let mut line_data = vec![];
+        loop {
+            let b = self.read_byte()?;
+            if !matches!(b, b'\n') {
+                line_data.push(b);
+            } else {
+                let line_buffer = LineBuffer {data:line_data.clone()};
+                if sender.send(line_buffer).is_ok() {
+                    return Err(VcdError::InternalError);
+                }
+                line_data.clear();
+            }
+        }
+    }
+}
+
+    fn parse_by_line_buffer(rcver:Receiver<LineBuffer>) -> std::result::Result<VcdDb, VcdError> {
+        
+        let mut vcd_db = VcdDb::new();
+
+        let scope_index_chain: RefCell<Vec<ScopeIndex>> = RefCell::new(vec![]);
+        // let mut vcd_statement_slices = vec![];
+        let mut scope_idx: usize = 0;
+        let mut var_idx: usize = 0;
+
+        let _has_timestamped_value = false;
+        let _has_dumpvars = RefCell::new(false);
+        let mut statement_start_without_end = false;
+        let mut readed_line: u64 = 0;
+        let mut onprocess_tag = VcdTag::Untagged;
+        let mut buff = vec![];
+        let mut line_num = 0u64;
+
+        let mut timestamp_rcvd = false;
+
+
+
+        while let Ok(line_buff) = rcver.recv() {
+            let line = String::from_utf8(line_buff.data).unwrap();
+            line_num += 1;
+            let rcvd_leading_tag = peak_tag(&line);
+            if let Some(tag) = rcvd_leading_tag {
+                onprocess_tag = tag;
+            }
+            
+            let exception_report = match rcvd_leading_tag {
+                Some(leading_tag) => {
+                    if leading_tag == VcdTag::Unsupported {
+                        Some(BadVCDReport {
+                            recovered_buff: buff.join(" "),
+                            error_start_line: line_num,
+                            possible_error: format!(
+                                "Unsupported tag is found at line {}",
+                                line_num
+                            ),
+                        })
+                    } else if leading_tag == VcdTag::Untagged
+                        && !timestamp_rcvd
+                        && !statement_start_without_end
+                    {
+                        Some(BadVCDReport {
+                            recovered_buff: buff.join(" "),
+                            error_start_line: line_num,
+                            possible_error: "Untagged is not allowed before timestamp or after statement has end".to_string(),
+                        })
+                    } else {
+                        if leading_tag == VcdTag::Timestamp {
+                            timestamp_rcvd = true;
+                            if buff.is_empty() {
+                                buff.push(line);
+                            } else {
+                                // first parse variable, then clear, finally push
+                                // 1.
+                                let casted = buff.join("\n");
+                                let (_, res) = vcd_variable_parser(&casted).map_err(|_| {
+                                    let mut diagnosis = BadVCDReport::new();
+                                    diagnosis.recovered_buff = casted.clone();
+                                    diagnosis.error_start_line = line_num;
+                                    diagnosis.possible_error = format!("found invalid variable var at line {}",line_num);                              
+                                    VcdError::BadVCD(diagnosis)
+                                })?;
+                                vcd_db.timestap.push(res.0);
+                                if vcd_db.var_value.is_empty() {
+                                    let mut zero_stamp_values: Vec<VarValue> = vec![];
+                                    let mut padding_vec = vec![];
+                                    for (item1,item2) in res.1.iter().enumerate() {
+                                        let var_id = *vcd_db.var_id_map.get(item2.1).unwrap_or_else(||panic!("current id is {:?}, current var id map {:?}", item2.1,vcd_db.var_id_map));
+                                        let target_width = vcd_db.variable[var_id].width as usize;
+                                        let mut un_padding = (item2.0).clone();
+                                        if !un_padding.padding(target_width) {
+                                            let mut diagnosis = BadVCDReport::new();
+                                            diagnosis.recovered_buff = casted.clone();
+                                            diagnosis.error_start_line = line_num;
+                                            diagnosis.possible_error = format!("found invalid variable var at line {}",line_num);  
+                                            return Err(VcdError::BadVCD(diagnosis));
+                                        }
+                                        zero_stamp_values.push(un_padding);
+                                        vcd_db.value_var_map.insert(item1, (item2.1).to_string());
+                                        padding_vec.push(var_id); // TODO add sever fatal                                                                                
+                                    }
+                                    vcd_db.padding_value.push(padding_vec);
+                                    vcd_db.var_value.push(zero_stamp_values);
+                                } else {
+                                    let mut padding_vec = vec![];
+                                    let mut value_vec = vec![];
+                                    for item in res.1 {
+                                        let var_id = *vcd_db.var_id_map.get(item.1).unwrap_or_else(||panic!("current id is {:?}, current var id map {:?}", item.1,vcd_db.var_id_map));
+                                        let target_width = vcd_db.variable[var_id].width as usize;
+                                        let mut un_padding = (item.0).clone();
+                                        if !un_padding.padding(target_width) {
+                                            let mut diagnosis = BadVCDReport::new();
+                                            diagnosis.recovered_buff = casted.clone();
+                                            diagnosis.error_start_line = line_num;
+                                            diagnosis.possible_error = format!("found invalid variable var at line {}",line_num);  
+                                            return Err(VcdError::BadVCD(diagnosis));
+                                        }                                 
+                                        padding_vec.push(var_id); // TODO add sever fatal
+                                        value_vec.push(un_padding);
+                                    }
+                                    vcd_db
+                                        .var_value
+                                        .push(value_vec);
+                                    vcd_db.padding_value.push(padding_vec);
+                                }
+                                // 2.
+                                buff.clear();
+                                // 3.
+                                buff.push(line);
+                            }
+                        } else {
+                            // parse dump ctrl and not append buffer
+                            if timestamp_rcvd && check_skipped_after_timestamp(&leading_tag) {
+                                // TODO: dump ctrl should be skipped when it come along inside timestamp
+                                // TODO: comment should be skipped when it come along inside timestamp
+                            } else {
+                                buff.push(line);
+                            }
+                            // let casted = buff.join("\n");
+                            // println!("casted is {:?}", casted);
+                            if check_end(&buff) {
+                                // 1.reset state
+                                statement_start_without_end = false;
+                                // 2.get casted
+                                let casted = buff.join("\n");                           
+                                // 3.clear buff
+                                buff.clear();
+                                match onprocess_tag {
+                                    VcdTag::Version => {
+                                        let (_, version) =
+                                            vcd_version_parser(&casted).map_err(|_| {
+                                                let mut diagnosis = BadVCDReport::new();
+                                                diagnosis.recovered_buff = casted.clone();
+                                                diagnosis.error_start_line = readed_line;
+                                                VcdError::BadVCD(diagnosis)
+                                            })?;
+                                        vcd_db.version = version.to_string();
+                                    }
+                                    VcdTag::Comment => {
+                                        let (_, comment) =
+                                            vcd_comment_parser(&casted).map_err(|_| {
+                                                let mut diagnosis = BadVCDReport::new();
+                                                diagnosis.recovered_buff = casted.clone();
+                                                diagnosis.error_start_line = readed_line;
+                                                VcdError::BadVCD(diagnosis)
+                                            })?;
+                                        vcd_db.comment = comment.to_string();
+                                    }
+                                    VcdTag::Date => {
+                                        let (_, date) = vcd_date_parser(&casted).map_err(|_| {
+                                            let mut diagnosis = BadVCDReport::new();
+                                            diagnosis.recovered_buff = casted.clone();
+                                            diagnosis.error_start_line = readed_line;
+                                            VcdError::BadVCD(diagnosis)
+                                        })?;
+                                        vcd_db.date = date.to_string();
+                                    }
+                                    VcdTag::Timescale => {
+                                        let (_, timescale) = vcd_timescale_parser(&casted)
+                                            .map_err(|_| {
+                                                let mut diagnosis = BadVCDReport::new();
+                                                diagnosis.recovered_buff = casted.clone();
+                                                diagnosis.error_start_line = readed_line;
+                                                VcdError::BadVCD(diagnosis)
+                                            })?;
+                                        vcd_db.timescale = timescale;
+                                    }
+                                    VcdTag::VarDef => {
+                                        let (_, res) =
+                                            vcd_variable_def_parser(&casted).map_err(|_| {
+                                                let mut diagnosis = BadVCDReport::new();
+                                                diagnosis.recovered_buff = casted.clone();
+                                                diagnosis.error_start_line = readed_line;
+                                                diagnosis.possible_error = format!("found bad variable def at line {}",readed_line);                                                
+                                                VcdError::BadVCD(diagnosis)
+                                            })?;
+                                        vcd_db.variable.push(res.1);
+                                        vcd_db.var_id_map.insert(res.0, var_idx);
+                                        vcd_db.scope[*scope_index_chain.borrow().last().unwrap()]
+                                            .variables
+                                            .push(var_idx);
+                                        var_idx += 1;
+                                    }
+                                    VcdTag::Scope => {
+                                        let (_, res) = vcd_scope_def_parser(&casted).map_err(|_| {
+                                            let mut diagnosis = BadVCDReport::new();
+                                            diagnosis.recovered_buff = casted.clone();
+                                            diagnosis.error_start_line = readed_line;
+                                            VcdError::BadVCD(diagnosis)
+                                        })?;
+                                        let a_scope: Scope = Scope {
+                                            scope_type: res.0,
+                                            scope_name: res.1.to_string(),
+                                            sub_scope_idx: vec![],
+                                            variables: vec![],
+                                        };
+                                        vcd_db.scope.push(a_scope);
+
+                                        scope_index_chain.borrow_mut().push(scope_idx);
+                                        scope_idx += 1;
+                                    }
+                                    VcdTag::Unscope => {
+                                        let _ = vcd_upscope_parser(&casted).map_err(|_| {
+                                            let mut diagnosis = BadVCDReport::new();
+                                            diagnosis.recovered_buff = casted.clone();
+                                            diagnosis.error_start_line = readed_line;
+                                            VcdError::BadVCD(diagnosis)
+                                        })?;
+                                        let _ = scope_index_chain.borrow_mut().pop();
+                                    }
+                                    VcdTag::Dumpvars | VcdTag::Dumpports | VcdTag::DumpOn | VcdTag::DumpOff | VcdTag::DumpAll => {
+
+                                    }
+                                    _ => {
+                                        // todo:
+                                    }
+                                }
+                            } else {
+                                // set state
+                                statement_start_without_end = true;
+                            }
+                        }
+
+                        None
+                    }
+                }
+                None => {
+                    readed_line += 1;
+                    None
+                }
+                // Some(BadVCDReport {
+                //     recovered_buff: buff.join(" "),
+                //     error_start_line: readed_line,
+                //     possible_error: format!("parser fail, not known error"),
+                // }),
+            };
+            if let Some(rpt) = exception_report {
+                return Err(VcdError::BadVCD(rpt));
+            };
+        }
+
+        Ok(vcd_db)
+    }
+
+
+
+

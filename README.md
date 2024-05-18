@@ -3,9 +3,21 @@
 
 
 # vcd-io
-VCD(Value Change Dump) spec parser/saver
+VCD(Value Change Dump) spec parser/saver with multi-thread speedup
 
-The crate is currently purposed for internal use only
+# Speedup Comparation
+
+> below shows speedup non-mt ***vs*** mt
+
+| Case | timestamp num | variable num | non-multithread | multithreead(mt) | speedup|
+| :-------- |:---------| :------- |:--------|:-----|:-----|
+| example1  | 21    | 5 | 0.008 | 0.010 | -0.20 |
+| example2 | 101     | 26 | 0.015 | 0.009 | 0.67 |
+| example3    | 4096    | 68 | 0.442| 0.010 | 43.2|
+
+> Evaluation by ```cargo make test```
+
+
 
 ## RoadMap
 The planned [roadmap](RoadMap.md)
