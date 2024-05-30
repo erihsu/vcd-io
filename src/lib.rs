@@ -289,6 +289,8 @@ pub type ValueIndex = usize;
 
 pub type VcdRes<T, U> = IResult<T, U, VerboseError<T>>;
 
+
+#[derive(Debug)]
 pub struct VcdDb {
     // VCD header
     pub date: String,
@@ -311,7 +313,7 @@ pub struct VcdDb {
     // <value index,variable identifier> mapping
     pub value_var_map: HashMap<ValueIndex, String>,
     // indicate start index of value, because vcd may missing value if no transition happened after a timestamp
-    pub padding_value: Vec<Vec<usize>>,
+    // pub padding_value: Vec<Vec<usize>>,
 }
 
 impl VcdDb {
@@ -320,9 +322,9 @@ impl VcdDb {
     }
 
     pub fn aligned(&self) -> bool {
-        let var_num = self.variable.len();
+        let dumped_var_num = self.var_value[0].len();
         for val in &self.var_value {
-            if val.len() != var_num {
+            if val.len() != dumped_var_num {
                 return false;
             }
         }
@@ -332,39 +334,6 @@ impl VcdDb {
     // result: 
     // 1. clean data in padding value and align data in var_value
     // 2. clean data in value_var_map
-    pub fn align_var_value(&mut self) -> bool {
-        let var_num = self.variable.len();
-        let mut prev_cycle_data = self.var_value[0].clone();
-        let mut curr_cycle_data = prev_cycle_data.clone();
-        println!("total var num {:?}", curr_cycle_data.len());
-        let mut mask:Vec<bool> = std::iter::repeat(false).take(var_num).collect();
-        let mut internal_cursor = 0;
-
-        for (i,padding) in self.padding_value[1..].iter().enumerate() {
-            if padding.len() + self.var_value[i+1].len() != var_num {
-                // broken data
-                return false;
-            }
-            for p in padding {
-                mask[*p] = true;
-            }
-            mask.iter().enumerate().for_each(|(j,is_masked)|{
-                if *is_masked {
-                    curr_cycle_data[j] = prev_cycle_data[j].clone();
-                } else {
-                    curr_cycle_data[j] = self.var_value[i+1][internal_cursor].clone();
-                    internal_cursor += 1;
-                }
-            });
-
-            self.var_value[i+1] = curr_cycle_data.clone();
-            prev_cycle_data = curr_cycle_data.clone();
-            internal_cursor = 0;
-        }
-
-        self.padding_value.clear();
-        true
-    }
 
 
 }
@@ -382,7 +351,6 @@ impl Default for VcdDb {
             var_value: vec![],
             var_id_map: HashMap::new(),
             value_var_map: HashMap::new(),
-            padding_value: vec![],
         }
     }
 }
@@ -395,7 +363,7 @@ pub fn parse_vcd(file: &str) -> Result<VcdDb, VcdError> {
     Ok(vcd)
 }
 
-#[derive(Default)]
+#[derive(Default,Debug)]
 pub struct LineBuffer {
     data:Vec<u8>,
 }
@@ -409,6 +377,7 @@ pub fn mt_parse_vcd(reader:std::fs::File) -> std::result::Result<VcdDb, VcdError
     let hd = std::thread::spawn(move || {
         let mut reader = ReaderWrap {reader,line_num:0u64};
         if !reader.read(sender).is_ok() {
+            // TODO: not return error when enter this
             return Err(VcdError::InternalError);
         }
         Ok(())
@@ -429,6 +398,14 @@ use std::sync::mpsc::{Receiver,Sender};
 pub struct ReaderWrap<R:std::io::Read> {
     reader:R,
     line_num:u64,
+}
+
+const COMMAND_END: &[u8] = b"$end";
+const COMMAND_END_LEN: usize = b"$end".len();
+
+
+fn check_contain_last_end(input:&[u8]) -> bool {
+    input[(input.len() - COMMAND_END_LEN)..] == *COMMAND_END
 }
 
 impl<R: std::io::Read> ReaderWrap<R> {
@@ -454,6 +431,8 @@ impl<R: std::io::Read> ReaderWrap<R> {
     }
 
 
+
+
     fn read(&mut self,sender:Sender<LineBuffer>) -> Result<(), VcdError>  {
         let mut line_data = vec![];
         loop {
@@ -462,10 +441,18 @@ impl<R: std::io::Read> ReaderWrap<R> {
                 line_data.push(b);
             } else {
                 let line_buffer = LineBuffer {data:line_data.clone()};
-                if sender.send(line_buffer).is_ok() {
-                    return Err(VcdError::InternalError);
+                println!("send data {:?}", line_buffer);
+                if check_contain_last_end(&line_buffer.data) {
+                    if !sender.send(line_buffer).is_ok() {
+                        println!("enter read error");
+                        return Err(VcdError::InternalError);
+                    }
+                    line_data.clear();    
+                } else {
+                    // padding a space after /n
+                    line_data.push(b'\n');
                 }
-                line_data.clear();
+
             }
         }
     }
@@ -489,12 +476,17 @@ impl<R: std::io::Read> ReaderWrap<R> {
         let mut line_num = 0u64;
 
         let mut timestamp_rcvd = false;
+        let mut prev_var_value = vec![];
+        // let mut prev_var_value_mask = vec![];
+        let mut dumpvars_index_map:HashMap<usize,usize> = HashMap::default();
 
 
-
+        let mut count = 0;
         while let Ok(line_buff) = rcver.recv() {
+            println!("enter mt line buffer parser, the counter is {}",count);
             let line = String::from_utf8(line_buff.data).unwrap();
             line_num += 1;
+            println!("current line is {:?}",line);
             let rcvd_leading_tag = peak_tag(&line);
             if let Some(tag) = rcvd_leading_tag {
                 onprocess_tag = tag;
@@ -502,6 +494,7 @@ impl<R: std::io::Read> ReaderWrap<R> {
             
             let exception_report = match rcvd_leading_tag {
                 Some(leading_tag) => {
+                    println!("current tag is {:?}", leading_tag);
                     if leading_tag == VcdTag::Unsupported {
                         Some(BadVCDReport {
                             recovered_buff: buff.join(" "),
@@ -539,7 +532,8 @@ impl<R: std::io::Read> ReaderWrap<R> {
                                 vcd_db.timestap.push(res.0);
                                 if vcd_db.var_value.is_empty() {
                                     let mut zero_stamp_values: Vec<VarValue> = vec![];
-                                    let mut padding_vec = vec![];
+                                    let mut zero_stamp_value_cnt = 0usize;
+                                    // let mut padding_vec = vec![];
                                     for (item1,item2) in res.1.iter().enumerate() {
                                         let var_id = *vcd_db.var_id_map.get(item2.1).unwrap_or_else(||panic!("current id is {:?}, current var id map {:?}", item2.1,vcd_db.var_id_map));
                                         let target_width = vcd_db.variable[var_id].width as usize;
@@ -552,14 +546,18 @@ impl<R: std::io::Read> ReaderWrap<R> {
                                             return Err(VcdError::BadVCD(diagnosis));
                                         }
                                         zero_stamp_values.push(un_padding);
+                                        // prev_var_value_mask.push(false); // all is not masked
+                                        dumpvars_index_map.insert(var_id,zero_stamp_value_cnt);
                                         vcd_db.value_var_map.insert(item1, (item2.1).to_string());
-                                        padding_vec.push(var_id); // TODO add sever fatal                                                                                
+                                        zero_stamp_value_cnt += 1;
+                                        // padding_vec.push(var_id); // TODO add sever fatal                                                                                
                                     }
-                                    vcd_db.padding_value.push(padding_vec);
+                                    // vcd_db.padding_value.push(padding_vec);
+                                    prev_var_value = zero_stamp_values.clone();
                                     vcd_db.var_value.push(zero_stamp_values);
                                 } else {
-                                    let mut padding_vec = vec![];
-                                    let mut value_vec = vec![];
+                                    // let mut padding_vec = vec![];
+                                    let mut value_vec = prev_var_value.clone();
                                     for item in res.1 {
                                         let var_id = *vcd_db.var_id_map.get(item.1).unwrap_or_else(||panic!("current id is {:?}, current var id map {:?}", item.1,vcd_db.var_id_map));
                                         let target_width = vcd_db.variable[var_id].width as usize;
@@ -571,13 +569,24 @@ impl<R: std::io::Read> ReaderWrap<R> {
                                             diagnosis.possible_error = format!("found invalid variable var at line {}",line_num);  
                                             return Err(VcdError::BadVCD(diagnosis));
                                         }                                 
-                                        padding_vec.push(var_id); // TODO add sever fatal
-                                        value_vec.push(un_padding);
+                                        // padding_vec.push(var_id); // TODO add sever fatal
+                                        // value_vec.push(un_padding);
+                                        if let Some(idx) = dumpvars_index_map.get(&var_id) {
+                                            value_vec[*idx] = un_padding;
+                                        } else {
+                                            let mut diagnosis = BadVCDReport::new();
+                                            diagnosis.recovered_buff = casted.clone();
+                                            diagnosis.error_start_line = line_num;
+                                            diagnosis.possible_error = format!("found invalid variable var at line {}",line_num);  
+                                            return Err(VcdError::BadVCD(diagnosis));
+                                        }
                                     }
+
+                                    prev_var_value = value_vec.clone();
                                     vcd_db
                                         .var_value
                                         .push(value_vec);
-                                    vcd_db.padding_value.push(padding_vec);
+                                    // vcd_db.padding_value.push(padding_vec);
                                 }
                                 // 2.
                                 buff.clear();
@@ -713,7 +722,11 @@ impl<R: std::io::Read> ReaderWrap<R> {
             if let Some(rpt) = exception_report {
                 return Err(VcdError::BadVCD(rpt));
             };
+
+            count += 1;
         }
+
+        println!("exit normally");
 
         Ok(vcd_db)
     }
