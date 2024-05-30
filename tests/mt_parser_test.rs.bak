@@ -1,3 +1,4 @@
+use vcd_io::TimeUnit;
 use std::fs::File;
 use vcd_io::mt_parse_vcd;
 
@@ -75,5 +76,29 @@ fn mt_parser_test11() {
 #[test]
 fn mt_parser_test12() {
     mt_vcd_picker!("handy3.vcd");
+}
+
+#[test]
+fn mt_padding_checker1() {
+    let filename = "example1.vcd";
+    let file = std::fs::File::open(format!(
+        "{}/testcases/{}",
+        std::env::var("CARGO_MANIFEST_DIR").unwrap(),
+        filename
+    )).unwrap();
+    match mt_parse_vcd(file) {
+        Ok(vcd_db) => {
+            println!("vcd db is {:?}", vcd_db);
+            assert_eq!(vcd_db.timescale, (1, TimeUnit::Usec));
+            assert_eq!(
+                vcd_db.aligned(),
+                true
+            );            
+        }
+        Err(e) => {
+            panic!("{:?}", e);
+            // assert!(false);
+        }
+    }
 }
 

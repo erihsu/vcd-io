@@ -83,12 +83,7 @@ fn content_checker3() {
         Ok(vcd_db) => {
             assert_eq!(
                 vcd_db.var_value[3][0],
-                VarValue::Vector(vec![
-                    ScalarValue::ZeroOne(false),
-                    ScalarValue::ZeroOne(false),
-                    ScalarValue::ZeroOne(false),
-                    ScalarValue::ZeroOne(true),
-                ])
+                VarValue::Scalar(ScalarValue::ZeroOne(false))
             );
             assert_eq!(vcd_db.timestap.len(), 21);
             assert_eq!(vcd_db.var_value.len(), 21);            
